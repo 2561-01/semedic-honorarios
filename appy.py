@@ -113,12 +113,17 @@ if menu == "Importar Archivos":
             st.success(f"Listo para cargar: {len(df2)} filas válidas")
             st.dataframe(df2.head(20))
 
-            if st.button("💾 Cargar y alimentar toda la app"):
-                conn = sqlite3.connect("honorarios.db")
-                df2.to_sql("honorarios", conn, if_exists="append", index=False)
-                conn.close()
-                st.success("¡Cargado! Ya alimenta Dashboard, Buscador y Estados. Ve a Buscador y escribe el nombre del médico.")
-                st.balloons()
+                     if st.button("💾 Cargar y alimentar toda la app"):
+                try:
+                    conn = sqlite3.connect("honorarios.db")
+                    # Si la tabla ya existe con otras columnas, la recreamos con las nuevas
+                    conn.execute("DROP TABLE IF EXISTS honorarios")
+                    df2.to_sql("honorarios", conn, if_exists="replace", index=False)
+                    conn.close()
+                    st.success("¡Cargado! Ya alimenta Dashboard, Buscador y Estados. Ve a Buscador y escribe el nombre del médico.")
+                    st.balloons()
+                except Exception as e:
+                    st.error(f"Detalle del error: {e}")
         except Exception as e:
             st.error(f"Error: {e}")
 if menu == "Dashboard":
