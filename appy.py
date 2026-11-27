@@ -16,6 +16,7 @@ st.markdown("""
     .title2 {font-size: 12px; color: #0B2A6B; font-weight: 800; letter-spacing: 1.5px; margin:0;}
     .subtitle {font-size: 12px; color: #6B7280; margin:0;}
     .box-verde {background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 14px; padding: 16px;}
+    .box-azul {background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 14px; padding: 16px;}
     .stButton>button {border-radius: 8px !important; font-weight: 600 !important;}
     div[data-testid="stSelectbox"] > div {border-radius: 10px !important;}
     div[data-testid="stTextInput"] input {border-radius: 12px !important; background: #F9FAFB !important;}
@@ -81,17 +82,13 @@ conn.execute("""CREATE TABLE IF NOT EXISTS medicos (
 )""")
 conn.commit()
 
-# --- NUEVO: FECHA SIN HORA + MES-AÑO COMO Abril-2026 ---
 MESES_ES = {1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"}
 def solo_fecha(valor):
-    # Quita la hora: 2025-11-06 00:00:00 -> 2025-11-06
     if pd.isna(valor) or str(valor).strip() == "" or str(valor).strip().lower() in ["nan", "none", "nat"]:
         return ""
     s = str(valor).strip()
-    # Si viene como 2025-11-06 00:00:00, cortamos en el espacio
     if " " in s:
         s = s.split(" ")[0]
-    # Si viene como 06/11/2025, lo pasamos a 2025-11-06
     try:
         dt = pd.to_datetime(s, errors="coerce")
         if pd.notna(dt):
@@ -101,9 +98,7 @@ def solo_fecha(valor):
     return s[:10]
 
 def mes_anio_de_fecha(valor_fecha, valor_mes_anio=""):
-    # Si ya tiene mes_anio como Abril-2026 y está bien, lo respetamos
     if valor_mes_anio and str(valor_mes_anio).strip() != "" and str(valor_mes_anio).strip().lower() not in ["nan", "none"]:
-        # Si viene como 2025-11, lo convertimos a Noviembre-2025
         vm = str(valor_mes_anio).strip()
         if "-" in vm and len(vm) == 7 and vm[:4].isdigit():
             try:
@@ -111,9 +106,7 @@ def mes_anio_de_fecha(valor_fecha, valor_mes_anio=""):
                 return f"{MESES_ES.get(mes, '')}-{anio}"
             except:
                 pass
-        # Si ya está como Abril-2026, lo dejamos
         return vm
-    # Si no, lo sacamos de la fecha
     f = solo_fecha(valor_fecha)
     if f == "":
         return ""
@@ -152,14 +145,12 @@ def arreglar_df(df):
     if "tramite" not in df.columns:
         df["tramite"] = ""
     df["tramite"] = df["tramite"].fillna("").astype(str).str.strip()
-    # --- ARREGLAMOS FECHA Y MES-AÑO PARA MOSTRAR ---
     if "fecha" not in df.columns:
         df["fecha"] = ""
     df["fecha"] = df["fecha"].apply(solo_fecha)
     if "mes_anio" not in df.columns:
         df["mes_anio"] = ""
     df["Mes - Año"] = df.apply(lambda r: mes_anio_de_fecha(r["fecha"], r["mes_anio"]), axis=1)
-    # Renombramos para mostrar bonito
     if "medico" in df.columns:
         df["Nombre de Médico"] = df["medico"]
     if "paciente" in df.columns:
@@ -320,36 +311,75 @@ with tab1:
             except Exception as e:
                 st.error(f"Error: {e}")
 
+# --- HONORARIOS MÉDICOS - FILTRO EN CASCADA: MÉDICO -> MES-AÑO -> TRÁMITE ---
 with tab2:
     st.write("### 💰 Honorarios Médicos")
-    st.write("#### ✅ PASO 1 - Elige el trámite y el médico, fácil con la flechita")
-    lista_tramites_todos = ["Todos los trámites"] + sorted([t for t in df_all_hon["tramite"].dropna().astype(str).unique() if t not in ["", "nan"]]) if len(df_all_hon) > 0 else ["Todos los trámites"]
-    lista_medicos_todos = ["Todos los médicos"] + sorted([m for m in df_all_hon["medico"].dropna().astype(str).unique() if m not in ["", "nan", "SIN ASIGNAR"]]) if len(df_all_hon) > 0 else ["Todos los médicos"]
-    col_tram, col_med, col_buscar = st.columns([1, 1, 1])
-    with col_tram:
-        tramite_elegido = st.selectbox("📋 1) Elige el N° de TRÁMITE ⬇️", lista_tramites_todos, key="tramite_facil")
-    with col_med:
-        medico_elegido = st.selectbox("👨‍⚕️ 2) Elige el MÉDICO ⬇️", lista_medicos_todos, key="medico_facil")
-    with col_buscar:
-        buscar_hon = st.text_input("🔍 O escribe aquí para buscar", placeholder="Nombre de Paciente, código...", key="buscar_hon_facil")
-    df = df_all_hon.copy()
-    if tramite_elegido != "Todos los trámites":
-        df = df[df["tramite"].astype(str) == tramite_elegido]
+    st.write("#### ✅ PASO 1 - Elige el médico y solo se despliegan su mes y sus trámites")
+    st.markdown('<div class="box-azul">', unsafe_allow_html=True)
+    st.write("**Así funciona:** Eliges el médico arriba → abajo solo salen los meses que ESE médico tiene → eliges el mes → solo salen los trámites de ESE médico en ESE mes.")
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.write("")
+    # PASO 1: MÉDICO - PRIMERO, SOLO MÉDICO
+    lista_medicos_todos = ["-- Elige un médico ⬇️ --"] + sorted([m for m in df_all_hon["medico"].dropna().astype(str).unique() if m not in ["", "nan", "SIN ASIGNAR"]]) if len(df_all_hon) > 0 else ["-- Elige un médico ⬇️ --"]
+    # Si quieres ver todos, tienes la opción Todos
+    lista_medicos_todos = ["Todos los médicos"] + lista_medicos_todos[1:] if len(lista_medicos_todos) > 1 else lista_medicos_todos
+    medico_elegido = st.selectbox("👨‍⚕️ 1) Elige el MÉDICO ⬇️", lista_medicos_todos, key="medico_cascada")
+    # Filtramos todo lo demás SOLO por ese médico
+    df_por_medico = df_all_hon.copy()
     if medico_elegido != "Todos los médicos":
-        df = df[df["medico"] == medico_elegido]
+        df_por_medico = df_all_hon[df_all_hon["medico"] == medico_elegido]
+    # PASO 2: MES - AÑO - SOLO LOS DE ESE MÉDICO
+    # Contamos cuántos cargos tiene ese médico en cada mes, para que veas: Abril-2026 (12)
+    if len(df_por_medico) > 0 and "Mes - Año" in df_por_medico.columns:
+        conteo_mes = df_por_medico["Mes - Año"].value_counts()
+        # Ordenamos por año-mes: convertimos Abril-2026 a fecha para ordenar
+        def ordenar_mes(m):
+            try:
+                # m = Abril-2026
+                nombre, anio = m.split("-")
+                meses_inv = {v: k for k, v in MESES_ES.items()}
+                return (int(anio), meses_inv.get(nombre, 0))
+            except:
+                return (0, 0)
+        meses_del_medico = sorted([m for m in df_por_medico["Mes - Año"].dropna().astype(str).unique() if m not in ["", "nan"]], key=ordenar_mes)
+        opciones_mes = ["Todos los meses de este médico"] + [f"{m} ({conteo_mes[m]} cargos)" for m in meses_del_medico]
+    else:
+        meses_del_medico = []
+        opciones_mes = ["Todos los meses de este médico"]
+    mes_elegido_raw = st.selectbox("📅 2) Mes - Año de ESE médico ⬇️  (solo salen los meses que él tiene)", opciones_mes, key="mes_cascada")
+    # Quitamos el (12 cargos) para filtrar
+    mes_elegido = mes_elegido_raw.split(" (")[0] if " (" in mes_elegido_raw else mes_elegido_raw
+    # Filtramos por mes
+    df_por_medico_mes = df_por_medico.copy()
+    if mes_elegido != "Todos los meses de este médico":
+        df_por_medico_mes = df_por_medico[df_por_medico["Mes - Año"] == mes_elegido]
+    # PASO 3: TRÁMITE - SOLO LOS DE ESE MÉDICO EN ESE MES
+    if len(df_por_medico_mes) > 0:
+        conteo_tram = df_por_medico_mes["tramite"].value_counts()
+        tramites_del_medico = sorted([t for t in df_por_medico_mes["tramite"].dropna().astype(str).unique() if t not in ["", "nan"]])
+        opciones_tram = ["Todos los trámites de este médico en este mes"] + [f"{t} ({conteo_tram[t]} cargos)" for t in tramites_del_medico]
+    else:
+        opciones_tram = ["Todos los trámites de este médico en este mes"]
+    tramite_elegido_raw = st.selectbox("📋 3) N° de TRÁMITE de ESE médico en ESE mes ⬇️  (solo salen sus trámites)", opciones_tram, key="tramite_cascada")
+    tramite_elegido = tramite_elegido_raw.split(" (")[0] if " (" in tramite_elegido_raw else tramite_elegido_raw
+    # Mostramos resumen de lo que eligió
+    if medico_elegido != "Todos los médicos":
+        st.success(f"✅ Médico: **{medico_elegido}** | Tiene **{len(df_por_medico)}** cargos en total | En **{mes_elegido}**: **{len(df_por_medico_mes)}** cargos | Trámite elegido: **{tramite_elegido}**")
+    else:
+        st.info("Estás viendo TODOS los médicos. Si eliges un médico arriba, abajo solo salen sus meses y sus trámites.")
+    # Buscador extra + filtros de estado
+    buscar_hon = st.text_input("🔍 O escribe aquí para buscar dentro de lo filtrado", placeholder="Nombre de Paciente, código...", key="buscar_hon_facil")
+    col_e1, col_e2 = st.columns(2)
+    with col_e1:
+        filtro_tramite = st.selectbox("🔵 Filtrar por Estado Trámite ⬇️", ["Todos"] + sorted(df_all_hon["estado_tramite"].unique().tolist()) if len(df_all_hon) > 0 else ["Todos"], key="f_tram_facil")
+    with col_e2:
+        filtro_pago = st.selectbox("🟢 Filtrar por Pago al Médico ⬇️", ["Todos", "Pendiente", "Pagado"], key="f_pago_facil")
+    # Aplicamos todo
+    df = df_por_medico_mes.copy()
+    if tramite_elegido != "Todos los trámites de este médico en este mes":
+        df = df[df["tramite"].astype(str) == tramite_elegido]
     if buscar_hon:
         df = df[df.apply(lambda r: buscar_hon.lower() in str(r["paciente"]).lower() or buscar_hon.lower() in str(r["medico"]).lower() or buscar_hon.lower() in str(r["tramite"]).lower() or buscar_hon.lower() in str(r["codigo"]).lower(), axis=1)]
-    # Filtro extra por Mes - Año
-    col_e1, col_e2, col_e3 = st.columns(3)
-    with col_e1:
-        lista_meses = ["Todos los meses"] + sorted([m for m in df_all_hon["Mes - Año"].dropna().astype(str).unique() if m not in ["", "nan"]]) if len(df_all_hon) > 0 and "Mes - Año" in df_all_hon.columns else ["Todos los meses"]
-        filtro_mes = st.selectbox("📅 Filtrar por Mes - Año ⬇️", lista_meses, key="f_mes_facil")
-    with col_e2:
-        filtro_tramite = st.selectbox("🔵 Filtrar por Estado Trámite ⬇️", ["Todos"] + sorted(df_all_hon["estado_tramite"].unique().tolist()) if len(df_all_hon) > 0 else ["Todos"], key="f_tram_facil")
-    with col_e3:
-        filtro_pago = st.selectbox("🟢 Filtrar por Pago al Médico ⬇️", ["Todos", "Pendiente", "Pagado"], key="f_pago_facil")
-    if filtro_mes != "Todos los meses":
-        df = df[df["Mes - Año"] == filtro_mes]
     if filtro_tramite != "Todos":
         df = df[df["estado_tramite"] == filtro_tramite]
     if filtro_pago != "Todos":
@@ -364,16 +394,14 @@ with tab2:
         c2.metric("Total 60%", f"${total_60:,.2f}")
         c3.metric("Pagado AL MEDICO", f"${pagado_60:,.2f}")
         c4.metric("Pendiente AL MEDICO", f"${pendiente_60:,.2f}")
-        st.write(f"**Mostrando {len(df)} trámites** - Trámite: {tramite_elegido} | Médico: {medico_elegido} | Mes: {filtro_mes}")
+        st.write(f"**Mostrando {len(df)} cargos** - Médico: {medico_elegido} | Mes: {mes_elegido} | Trámite: {tramite_elegido}")
         st.write("#### ✅ PASO 2 - Marca con el cuadrito los que quieres actualizar")
         df_edit_base = df.copy()
         df_edit_base["seleccionar"] = False
-        # --- COLUMNAS CON NOMBRES COMPLETOS COMO PEDISTE ---
         df_para_mostrar = df_edit_base.copy()
-        # Preparamos las columnas bonitas
         df_para_mostrar["Nombre de Médico"] = df_para_mostrar["medico"]
         df_para_mostrar["Nombre de Paciente"] = df_para_mostrar["paciente"]
-        df_para_mostrar["Fecha"] = df_para_mostrar["fecha"]  # ya sin hora
+        df_para_mostrar["Fecha"] = df_para_mostrar["fecha"]
         df_para_mostrar["Código"] = df_para_mostrar["codigo"]
         df_para_mostrar["Descripción"] = df_para_mostrar["descripcion"]
         df_para_mostrar["N° Trámite"] = df_para_mostrar["tramite"]
@@ -415,14 +443,14 @@ with tab2:
                     elif nuevo_estado_pago != "No cambiar pago":
                         conn.execute("UPDATE honorarios SET estado_pago=? WHERE rowid=?", (nuevo_estado_pago, int(i)))
                 conn.commit()
-                st.success(f"✅ ¡Listo! Se actualizaron {len(ids_sel)} trámites. Trámite: {nuevo_estado_tramite} | Pago: {nuevo_estado_pago} | Total: ${total_sel_60:,.2f}")
+                st.success(f"✅ ¡Listo! Se actualizaron {len(ids_sel)} cargos. Trámite: {nuevo_estado_tramite} | Pago: {nuevo_estado_pago} | Total: ${total_sel_60:,.2f}")
                 st.balloons()
                 st.rerun()
         st.divider()
         st.write("#### Atajos rápidos")
         col_r1, col_r2 = st.columns(2)
         with col_r1:
-            if st.button(f"✅ Marcar TODOS los {len(df)} de este trámite como PAGADO AL MÉDICO", use_container_width=True):
+            if st.button(f"✅ Marcar TODOS los {len(df)} de este médico / mes / trámite como PAGADO AL MÉDICO", use_container_width=True):
                 for i in df["id"].tolist():
                     conn.execute("UPDATE honorarios SET estado_pago='Pagado' WHERE rowid=?", (int(i),))
                 conn.commit()
@@ -435,16 +463,15 @@ with tab2:
                 conn.commit()
                 st.success(f"Se volvieron {len(df)} a Pendiente")
                 st.rerun()
-        # Para descargar, usamos nombres bonitos también
         df_desc = df_para_mostrar[cols_edit].copy()
         df_desc = df_desc.drop(columns=["seleccionar"], errors="ignore")
         buf_hon = crear_excel_bien({"Honorarios": df_desc})
         st.download_button("📥 Descargar este listado en Excel", data=buf_hon, file_name="Honorarios.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     else:
-        st.info("No hay honorarios con ese trámite / médico. Elige otro trámite con la flechita o ve a Importar Archivos.")
+        st.info("Ese médico no tiene cargos en ese mes / trámite. Elige otro mes o trámite con la flechita, que solo salen los que él tiene.")
 
 with tab3:
-    st.write("### ⚠️ Pacientes SIN Médico Asignado - Cargos / Códigos sin asignar")
+    st.write("### ⚠️ Pacientes SIN Médico Asignado")
     df_sin_all = arreglar_df(cargar_honorarios())
     df_sin = df_sin_all[(df_sin_all["medico"] == "SIN ASIGNAR") | (df_sin_all["medico"] == "") | (df_sin_all["medico"].isna())] if len(df_sin_all) > 0 else df_sin_all.copy()
     if len(df_sin) == 0:
@@ -484,10 +511,9 @@ with tab3:
         df_sin_show["Valor 60%"] = df_sin_show["valor_60"]
         df_sin_show["Estado Trámite"] = df_sin_show["estado_tramite"]
         df_sin_show["Pago al Médico"] = df_sin_show["estado_pago"]
-        cols_sin_final = [c for c in ["Nombre de Paciente", "Código / Cargo", "Descripción / Cargo", "N° Trámite", "Fecha", "Mes - Año", "Seguro", "Valor", "Valor 60%", "Estado Trámite", "Pago al Médico"] if c in df_sin_show.columns]
-        # Seguro con nombre bonito
         if "seguro" in df_sin_show.columns:
             df_sin_show["Seguro"] = df_sin_show["seguro"]
+        cols_sin_final = [c for c in ["Nombre de Paciente", "Código / Cargo", "Descripción / Cargo", "N° Trámite", "Fecha", "Mes - Año", "Seguro", "Valor", "Valor 60%", "Estado Trámite", "Pago al Médico"] if c in df_sin_show.columns]
         st.dataframe(df_sin_show[cols_sin_final], use_container_width=True, hide_index=True)
         if len(df_f_sin) > 0:
             st.write("#### 📊 ¿Qué códigos / cargos son los que más están sin médico?")
@@ -550,7 +576,6 @@ with tab4:
             df2["codigo"] = df_imp[c_codigo].astype(str) if c_codigo else ""
             df2["descripcion"] = df_imp[c_desc].astype(str) if c_desc else ""
             df2["valor"] = pd.to_numeric(df_imp[c_valor], errors="coerce").fillna(0) if c_valor else 0
-            # Fecha sin hora + Mes-Año
             if c_fecha:
                 df2["fecha"] = df_imp[c_fecha].apply(solo_fecha)
             else:
@@ -583,23 +608,14 @@ with tab4:
             for _, row in df2.iterrows():
                 clave = (str(row["paciente"]).strip(), str(row["tramite"]).strip(), str(row["codigo"]).strip())
                 if clave in existentes:
-                    # Si ya existía, le actualizamos fecha y mes-año también, para que se arregle lo viejo
                     conn.execute("UPDATE honorarios SET estado_tramite=?, estado=?, fecha=?, mes_anio=? WHERE rowid=?", (row["estado_tramite"], row["estado_tramite"], str(row["fecha"]), str(row["mes_anio"]), int(existentes[clave])))
                     actualizados += 1
                 else:
                     conn.execute("INSERT INTO honorarios (paciente, medico, fecha, codigo, descripcion, valor, seguro, tramite, mes_anio, valor_40, valor_50, valor_60, estado, estado_tramite, estado_pago, valor_pagado, es_paquete) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (str(row["paciente"]), str(row["medico"]), str(row["fecha"]), str(row["codigo"]), str(row["descripcion"]), float(row["valor"]), str(row["seguro"]), str(row["tramite"]), str(row["mes_anio"]), float(row["valor_40"]), float(row["valor_50"]), float(row["valor_60"]), str(row["estado_tramite"]), str(row["estado_tramite"]), "Pendiente", 0, 0))
                     nuevos += 1
             conn.commit()
-            st.success(f"✅ ¡Listo! Automático. Nuevos: {nuevos} | Estados actualizados: {actualizados} | Fecha sin hora y Mes-Año guardados.")
+            st.success(f"✅ ¡Listo! Automático. Nuevos: {nuevos} | Estados actualizados: {actualizados}")
             st.balloons()
-            # Muestra cómo quedó
-            st.write("Así quedó tu archivo, con Fecha sin hora y Mes - Año:")
-            df_muestra = df2.copy()
-            df_muestra["Nombre de Médico"] = df_muestra["medico"]
-            df_muestra["Nombre de Paciente"] = df_muestra["paciente"]
-            df_muestra["Fecha"] = df_muestra["fecha"]
-            df_muestra["Mes - Año"] = df_muestra["mes_anio"]
-            st.dataframe(df_muestra[["Nombre de Médico", "Nombre de Paciente", "Fecha", "Mes - Año", "codigo", "tramite", "valor"]].head(10), use_container_width=True, hide_index=True)
         except Exception as e:
             st.error(f"Error: {e}")
 
