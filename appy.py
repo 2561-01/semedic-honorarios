@@ -45,21 +45,43 @@ conn.execute("""CREATE TABLE IF NOT EXISTS medicos (
 )""")
 conn.commit()
 
-# --- BARRA ARRIBA: RANGO MESES + MEDICOS ---
+def arreglar_df(df):
+    if len(df) == 0:
+        return df
+    if "valor" not in df.columns:
+        df["valor"] = 0
+    df["valor"] = pd.to_numeric(df["valor"], errors="coerce").fillna(0)
+    if "valor_60" not in df.columns or df["valor_60"].isna().all():
+        df["valor_60"] = (df["valor"] * 0.60).round(2)
+    if "valor_40" not in df.columns:
+        df["valor_40"] = (df["valor"] * 0.40).round(2)
+    if "valor_50" not in df.columns:
+        df["valor_50"] = (df["valor"] * 0.50).round(2)
+    if "estado_pago" not in df.columns:
+        df["estado_pago"] = "Pendiente"
+    df["estado_pago"] = df["estado_pago"].fillna("Pendiente")
+    df.loc[(df["valor_60"] == 0) & (df["valor"] != 0), "valor_60"] = (df["valor"] * 0.60).round(2)
+    try:
+        conn.execute("UPDATE honorarios SET valor_60 = valor * 0.60 WHERE valor_60 IS NULL OR valor_60 = 0")
+        conn.commit()
+    except:
+        pass
+    return df
+
 try:
-    df_resumen = pd.read_sql("SELECT * FROM honorarios", conn)
+    df_resumen = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
     df_med = pd.read_sql("SELECT * FROM medicos", conn)
     medicos_honorarios = df_resumen["medico"].dropna().astype(str).str.strip().unique().tolist() if len(df_resumen) > 0 else []
     medicos_registrados = df_med["nombre"].dropna().astype(str).str.strip().unique().tolist() if len(df_med) > 0 else []
     todos_medicos = sorted(set(medicos_honorarios + medicos_registrados) - set(["", "SIN ASIGNAR", "nan"]))
     total_medicos = len(todos_medicos)
     if len(df_resumen) > 0:
-        meses = df_resumen["mes_anio"].dropna().astype(str).str.strip()
+        meses = df_resumen["mes_anio"].dropna().astype(str).str.strip() if "mes_anio" in df_resumen.columns else pd.Series([])
         meses = meses[meses != ""]
         if len(meses) > 0:
             texto_rango = f"Honorarios actualizados desde: {sorted(meses.unique())[0]}  hasta: {sorted(meses.unique())[-1]}"
         else:
-            fechas = pd.to_datetime(df_resumen["fecha"], errors="coerce").dropna()
+            fechas = pd.to_datetime(df_resumen["fecha"], errors="coerce").dropna() if "fecha" in df_resumen.columns else pd.Series([])
             texto_rango = f"Honorarios actualizados desde: {fechas.min().strftime('%B %Y')}  hasta: {fechas.max().strftime('%B %Y')}" if len(fechas) > 0 else "Sin datos aún"
     else:
         texto_rango = "Honorarios actualizados: Aún no has cargado ningún archivo"
@@ -72,7 +94,7 @@ menu = st.sidebar.selectbox("Menú", ["Dashboard", "Buscador", "Importar Archivo
 
 if menu == "Dashboard":
     st.subheader("Dashboard - Todo se paga al 60%")
-    df = pd.read_sql("SELECT * FROM honorarios", conn)
+    df = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
     if len(df) == 0:
         st.info("Aún no hay datos. Ve a Importar Archivos y carga tu Excel.")
     else:
@@ -92,66 +114,113 @@ if menu == "Dashboard":
         buffer.seek(0)
         st.download_button("📥 Descargar en Excel bien", data=buffer, file_name="honorarios.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+# --- BUSCADOR: SELECCIONAR MEDICO Y DESCARGAR RESUMEN ---
 if menu == "Buscador":
-    st.subheader("Buscador por Médico - Solo 60%")
-    nombre = st.text_input("Nombre del médico")
-    df_all = pd.read_sql("SELECT * FROM honorarios", conn)
-    if nombre:
-        df = df_all[df_all["medico"].astype(str).str.contains(nombre, case=False, na=False)].copy()
-        if len(df) == 0:
-            st.warning("No se encontró ese médico")
-        else:
-            total_general = df["valor"].sum()
-            total_60 = df["valor_60"].sum()
-            total_pagado = df[df["estado_pago"] == "Pagado"]["valor_60"].sum()
-            total_pendiente = total_60 - total_pagado
-            st.write(f"### Médico: {df.iloc[0]['medico']}")
-            c1, c2 = st.columns(2)
-            c1.metric("Total General Cargado", f"${total_general:,.2f}")
-            c2.metric("Total a Pagar - Solo 60%", f"${total_60:,.2f}")
-            c3, c4, c5 = st.columns(3)
-            c3.metric("Total Pagado (del 60%)", f"${total_pagado:,.2f}")
-            c4.metric("Total Pendiente (del 60%)", f"${total_pendiente:,.2f}")
-            c5.metric("N° Trámites", len(df))
-            st.info(f"Al médico se le paga solo el 60%: de ${total_general:,.2f} cargados, se le deben pagar ${total_60:,.2f}")
-            porc = (total_pagado / total_60 * 100) if total_60 > 0 else 0
-            st.progress(porc / 100)
-            st.write(f"Progreso del 60%: {porc:.1f}% pagado - Falta {100-porc:.1f}%")
-            if total_pagado == 0:
-                st.error("🔴 Estado: NO PAGADO")
-            elif total_pendiente == 0:
-                st.success("🟢 Estado: PAGADO TOTAL")
-            else:
-                st.warning(f"🟡 Estado: PAGO PARCIAL - Ya se le pagó ${total_pagado:,.2f} de ${total_60:,.2f}")
-            st.divider()
-            st.write("#### ✅ Marcar qué se le ha pagado al médico")
-            df["seleccionar"] = False
-            df_edit = st.data_editor(df[["seleccionar", "id", "paciente", "fecha", "codigo", "descripcion", "valor", "valor_60", "seguro", "tramite", "estado_pago"]], use_container_width=True, hide_index=True, key="editor_pagos")
-            col1, col2 = st.columns(2)
-            ids_sel = df_edit[df_edit["seleccionar"] == True]["id"].tolist()
-            if col1.button(f"✅ Marcar {len(ids_sel)} como PAGADO"):
-                for i in ids_sel:
-                    conn.execute("UPDATE honorarios SET estado_pago='Pagado', estado_tramite='Pagado' WHERE id=?", (int(i),))
-                conn.commit()
-                st.success(f"Se marcaron {len(ids_sel)} trámites como Pagado")
-                st.rerun()
-            if col2.button(f"↩️ Volver {len(ids_sel)} a PENDIENTE"):
-                for i in ids_sel:
-                    conn.execute("UPDATE honorarios SET estado_pago='Pendiente', estado_tramite='Pendiente' WHERE id=?", (int(i),))
-                conn.commit()
-                st.success(f"Se volvieron {len(ids_sel)} trámites a Pendiente")
-                st.rerun()
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-                df.to_excel(writer, index=False, sheet_name="Busqueda")
-            buffer.seek(0)
-            st.download_button("📥 Descargar búsqueda en Excel", data=buffer, file_name="busqueda.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    else:
+    st.subheader("Buscador por Médico - Selecciona y descarga su resumen")
+    df_all = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
+    # Lista de médicos para seleccionar, no hay que escribir
+    lista = sorted([m for m in df_all["medico"].dropna().astype(str).str.strip().unique() if m not in ["", "SIN ASIGNAR", "nan"]]) if len(df_all) > 0 else []
+    if len(lista) == 0:
+        st.info("Aún no hay médicos cargados. Ve a Importar Archivos.")
         st.dataframe(df_all, use_container_width=True)
+    else:
+        st.write("1️⃣ Selecciona el médico de la lista:")
+        medico_sel = st.selectbox("Selecciona el médico", ["-- Elige un médico --"] + lista)
+        # También puedes escribir si quieres buscar rápido
+        buscar_texto = st.text_input("O escribe parte del nombre para filtrar (opcional)")
+        if buscar_texto:
+            lista_filtrada = [m for m in lista if buscar_texto.lower() in m.lower()]
+            if len(lista_filtrada) > 0:
+                medico_sel = st.selectbox("Médicos encontrados", lista_filtrada, key="filtro_medico")
+        if medico_sel and medico_sel != "-- Elige un médico --":
+            df = df_all[df_all["medico"] == medico_sel].copy()
+            if len(df) == 0:
+                st.warning("No se encontró ese médico")
+            else:
+                total_general = df["valor"].sum()
+                total_60 = df["valor_60"].sum()
+                total_pagado = df[df["estado_pago"] == "Pagado"]["valor_60"].sum()
+                total_pendiente = total_60 - total_pagado
+                n_pagados = len(df[df["estado_pago"] == "Pagado"])
+                n_pendientes = len(df) - n_pagados
+                st.write(f"### 👨‍⚕️ Médico seleccionado: {medico_sel}")
+                c1, c2 = st.columns(2)
+                c1.metric("Total General Cargado", f"${total_general:,.2f}")
+                c2.metric("Total a Pagar - Solo 60%", f"${total_60:,.2f}")
+                c3, c4, c5 = st.columns(3)
+                c3.metric("Total Pagado (del 60%)", f"${total_pagado:,.2f}")
+                c4.metric("Total Pendiente (del 60%)", f"${total_pendiente:,.2f}")
+                c5.metric("N° Trámites", len(df))
+                st.info(f"Al médico se le paga solo el 60%: de ${total_general:,.2f} cargados, se le deben pagar ${total_60:,.2f} | Pagados: {n_pagados} trámites | Pendientes: {n_pendientes} trámites")
+                porc = (total_pagado / total_60 * 100) if total_60 > 0 else 0
+                st.progress(porc / 100)
+                st.write(f"Progreso del 60%: {porc:.1f}% pagado - Falta {100-porc:.1f}%")
+                if total_pagado == 0:
+                    estado_txt = "NO PAGADO"
+                    st.error("🔴 Estado: NO PAGADO")
+                elif total_pendiente == 0:
+                    estado_txt = "PAGADO TOTAL"
+                    st.success("🟢 Estado: PAGADO TOTAL")
+                else:
+                    estado_txt = "PAGO PARCIAL"
+                    st.warning(f"🟡 Estado: PAGO PARCIAL - Ya se le pagó ${total_pagado:,.2f} de ${total_60:,.2f}")
+                st.divider()
+                st.write(f"#### 📋 Todos los cargos de {medico_sel} - Despliega todo")
+                st.write("Aquí están todos los gastos / cargos que tiene este médico:")
+                cols_mostrar = [c for c in ["id", "paciente", "fecha", "codigo", "descripcion", "valor", "valor_60", "seguro", "tramite", "mes_anio", "estado_pago"] if c in df.columns]
+                st.dataframe(df[cols_mostrar], use_container_width=True)
+                st.divider()
+                st.write("#### ✅ Marcar qué se le ha pagado al médico")
+                df["seleccionar"] = False
+                cols_edit = [c for c in ["seleccionar", "id", "paciente", "fecha", "codigo", "descripcion", "valor", "valor_60", "seguro", "tramite", "estado_pago"] if c in df.columns]
+                df_edit = st.data_editor(df[cols_edit], use_container_width=True, hide_index=True, key="editor_pagos")
+                col1, col2 = st.columns(2)
+                ids_sel = df_edit[df_edit["seleccionar"] == True]["id"].tolist() if "seleccionar" in df_edit.columns else []
+                if col1.button(f"✅ Marcar {len(ids_sel)} como PAGADO"):
+                    for i in ids_sel:
+                        conn.execute("UPDATE honorarios SET estado_pago='Pagado', estado_tramite='Pagado' WHERE id=?", (int(i),))
+                    conn.commit()
+                    st.success(f"Se marcaron {len(ids_sel)} trámites como Pagado")
+                    st.rerun()
+                if col2.button(f"↩️ Volver {len(ids_sel)} a PENDIENTE"):
+                    for i in ids_sel:
+                        conn.execute("UPDATE honorarios SET estado_pago='Pendiente', estado_tramite='Pendiente' WHERE id=?", (int(i),))
+                    conn.commit()
+                    st.success(f"Se volvieron {len(ids_sel)} trámites a Pendiente")
+                    st.rerun()
+                st.divider()
+                # --- DESCARGAR RESUMEN POR MEDICO ---
+                st.write(f"#### 📥 Descargar resumen completo de {medico_sel}")
+                st.write("El Excel trae 2 hojas: Resumen + Detalle con todos sus gastos.")
+                if st.button(f"📥 Generar Excel de {medico_sel}"):
+                    buffer = io.BytesIO()
+                    resumen = pd.DataFrame([{
+                        "Médico": medico_sel,
+                        "Total General Cargado": round(total_general, 2),
+                        "Total a Pagar 60%": round(total_60, 2),
+                        "Total Pagado del 60%": round(total_pagado, 2),
+                        "Total Pendiente del 60%": round(total_pendiente, 2),
+                        "N° Trámites Total": len(df),
+                        "N° Trámites Pagados": n_pagados,
+                        "N° Trámites Pendientes": n_pendientes,
+                        "Porcentaje Pagado": f"{porc:.1f}%",
+                        "Estado del Pago": estado_txt
+                    }])
+                    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                        resumen.to_excel(writer, index=False, sheet_name="Resumen")
+                        df[cols_mostrar].to_excel(writer, index=False, sheet_name="Detalle")
+                    buffer.seek(0)
+                    st.download_button(
+                        f"📥 Descargar resumen de {medico_sel} en Excel",
+                        data=buffer,
+                        file_name=f"Resumen_{medico_sel.replace(' ', '_')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                    st.success(f"Listo. Descarga el resumen de {medico_sel}")
 
 if menu == "Importar Archivos":
     st.subheader("📂 Importar Archivos - Se va alimentando, NO borra lo anterior")
-    df_existente = pd.read_sql("SELECT * FROM honorarios", conn)
+    df_existente = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
     st.info(f"Ya tienes guardados: {len(df_existente)} registros - Total acumulado: ${df_existente['valor'].sum():,.2f} si ya cargaste antes")
     archivo = st.file_uploader("Sube tu archivo Excel", type=["xlsx", "xls"])
     if archivo is not None:
@@ -188,7 +257,6 @@ if menu == "Importar Archivos":
             df2["mes_anio"] = df_imp[c_mes] if c_mes else ""
             df2 = df2[df2["paciente"].astype(str).str.strip() != ""]
             df2 = df2[~df2["paciente"].astype(str).str.contains("Suma|Total|Etiquetas", na=False)]
-            # Si viene sin médico, lo dejamos como SIN ASIGNAR para que aparezca en Sin Médico
             df2["medico"] = df2["medico"].fillna("").astype(str).str.strip()
             df2.loc[df2["medico"] == "", "medico"] = "SIN ASIGNAR"
             df2["valor_40"] = (df2["valor"] * 0.40).round(2)
@@ -219,12 +287,9 @@ if menu == "Importar Archivos":
         except Exception as e:
             st.error(f"Error: {e}")
 
-# --- SIN MEDICO ASIGNADO - EDITABLE Y RAPIDO ---
 if menu == "Sin Médico Asignado":
     st.subheader("✏️ Pacientes / Líneas SIN Médico Asignado - Aquí los editas")
-    st.write("Aquí ves solo lo que quedó sin médico al cargar el archivo. Lo puedes buscar por paciente, código o trámite y asignarlo.")
-    df_sin = pd.read_sql("SELECT * FROM honorarios WHERE medico='SIN ASIGNAR' OR medico='' OR medico IS NULL", conn)
-    # Lista de médicos para asignar: los registrados + los que ya aparecen en honorarios
+    df_sin = arreglar_df(pd.read_sql("SELECT * FROM honorarios WHERE medico='SIN ASIGNAR' OR medico='' OR medico IS NULL", conn))
     df_med_all = pd.read_sql("SELECT * FROM medicos", conn)
     df_hon_all = pd.read_sql("SELECT medico FROM honorarios", conn)
     lista_medicos = sorted(set(df_med_all["nombre"].dropna().astype(str).tolist() + df_hon_all["medico"].dropna().astype(str).tolist()) - set(["", "SIN ASIGNAR", "nan"]))
@@ -241,15 +306,12 @@ if menu == "Sin Médico Asignado":
         if busqueda:
             df_filtrado = df_sin[df_sin.apply(lambda r: busqueda.lower() in str(r["paciente"]).lower() or busqueda.lower() in str(r["codigo"]).lower() or busqueda.lower() in str(r["tramite"]).lower() or busqueda.lower() in str(r["descripcion"]).lower(), axis=1)]
             st.write(f"Encontrados: {len(df_filtrado)}")
-        # --- FORMA 1: RÁPIDA - Seleccionar varias y asignar a un solo médico ---
         st.write("#### ⚡ Forma rápida: Selecciona varias líneas y asígnalas a un médico")
         df_filtrado["seleccionar"] = False
-        df_edit = st.data_editor(
-            df_filtrado[["seleccionar", "id", "paciente", "fecha", "codigo", "descripcion", "valor", "valor_60", "seguro", "tramite", "mes_anio"]],
-            use_container_width=True, hide_index=True, key="editor_sin_medico"
-        )
+        cols_sin = [c for c in ["seleccionar", "id", "paciente", "fecha", "codigo", "descripcion", "valor", "valor_60", "seguro", "tramite", "mes_anio"] if c in df_filtrado.columns]
+        df_edit = st.data_editor(df_filtrado[cols_sin], use_container_width=True, hide_index=True, key="editor_sin_medico")
         medico_elegido = st.selectbox("¿A qué médico le asignas los seleccionados?", lista_medicos)
-        ids_sel = df_edit[df_edit["seleccionar"] == True]["id"].tolist()
+        ids_sel = df_edit[df_edit["seleccionar"] == True]["id"].tolist() if "seleccionar" in df_edit.columns else []
         if st.button(f"✅ Asignar {len(ids_sel)} líneas a {medico_elegido}"):
             if len(ids_sel) == 0:
                 st.warning("Marca primero con el cuadrito cuáles quieres asignar")
@@ -260,9 +322,7 @@ if menu == "Sin Médico Asignado":
                 st.success(f"Listo. Se asignaron {len(ids_sel)} líneas a {medico_elegido}")
                 st.rerun()
         st.divider()
-        # --- FORMA 2: UNO POR UNO, POR CÓDIGO ---
         st.write("#### ✏️ Forma uno por uno: Editar por código")
-        st.write("Si quieres asignar un solo código, búscalo abajo y elige su médico.")
         for _, fila in df_filtrado.head(30).iterrows():
             id_val = fila["id"]
             col_a, col_b, col_c = st.columns([3, 2, 1])
@@ -273,17 +333,12 @@ if menu == "Sin Médico Asignado":
                 conn.commit()
                 st.success(f"Asignado a {nm}")
                 st.rerun()
-        if len(df_filtrado) > 30:
-            st.info("Te muestro los primeros 30 para que no se haga pesado. Usa el buscador de arriba para filtrar por paciente o código y te sale el que quieres.")
 
 if menu == "Médicos":
     st.subheader("👨‍⚕️ Médicos Registrados - Solo para ver médicos")
     df_medicos = pd.read_sql("SELECT * FROM medicos", conn)
-    df_hon = pd.read_sql("SELECT * FROM honorarios", conn)
-    if len(df_hon) > 0:
-        medicos_con_carga = [m for m in df_hon["medico"].dropna().astype(str).str.strip().unique() if m not in ["", "SIN ASIGNAR", "nan"]]
-    else:
-        medicos_con_carga = []
+    df_hon = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
+    medicos_con_carga = [m for m in df_hon["medico"].dropna().astype(str).str.strip().unique() if m not in ["", "SIN ASIGNAR", "nan"]] if len(df_hon) > 0 else []
     c1, c2 = st.columns(2)
     c1.metric("Médicos agregados a mano", len(df_medicos))
     c2.metric("Médicos con honorarios cargados", len(medicos_con_carga))
