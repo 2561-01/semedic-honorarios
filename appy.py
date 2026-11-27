@@ -3,40 +3,31 @@ import pandas as pd
 import sqlite3
 import io
 
-st.set_page_config(page_title="Hospital Semedic - Staff Médico & Sellos", layout="wide")
+st.set_page_config(page_title="Hospital Semedic - Honorarios Médicos", layout="wide")
 
-# --- ESTILO IGUAL A TU FOTO: AZUL OSCURO, BLANCO, VERDE ---
+# --- ESTILO LIMPIO COMO TU FOTO, PERO TODO FUNCIONAL ---
 st.markdown("""
 <style>
-    .block-container {padding-top: 0rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 1400px;}
+    .block-container {padding-top: 1rem !important; max-width: 1400px;}
     header {visibility: hidden;}
-    .topbar {background: white; border-bottom: 1px solid #E5E7EB; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 999;}
-    .logo-box {display: flex; align-items: center; gap: 10px;}
-    .hs {background: #0B2A6B; color: white; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px;}
-    .title1 {font-weight: 800; font-size: 17px; line-height: 1.1; color: #111827;}
-    .title2 {font-size: 11px; color: #2563EB; font-weight: 700; letter-spacing: 1px;}
-    .nav {display: flex; gap: 18px; font-size: 13px; color: #4B5563;}
-    .nav b {color: #0B2A6B; border-bottom: 2px solid #0B2A6B; padding-bottom: 4px;}
-    .user-chip {background: #F3F4F6; border-radius: 10px; padding: 6px 12px; display: flex; gap: 8px; align-items: center; font-size: 12px;}
-    .avatar {background: #D1D5DB; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;}
-    .btn-blue {background: #0B2A6B; color: white; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; border: none;}
-    .btn-light {background: white; border: 1px solid #D1D5DB; border-radius: 8px; padding: 8px 12px; font-size: 13px;}
-    .search-box {background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 10px 14px; width: 100%;}
-    .card {background: white; border: 1px solid #E5E7EB; border-radius: 16px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
-    .metric-card {background: white; border: 1px solid #E5E7EB; border-radius: 14px; padding: 16px;}
-    .pill-green {background: #047857; color: white; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600;}
-    .pill-dark {background: #111827; color: white; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600;}
-    .pill-light {background: #F3F4F6; color: #374151; border-radius: 8px; padding: 6px 12px; font-size: 13px;}
+    .header-real {display:flex; align-items:center; gap:12px; padding: 8px 0 4px 0; border-bottom: 1px solid #E5E7EB; margin-bottom: 10px;}
+    .hs {background: #0B2A6B; color: white; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px;}
+    .title1 {font-weight: 800; font-size: 20px; line-height: 1.1; color: #111827; margin:0;}
+    .title2 {font-size: 12px; color: #0B2A6B; font-weight: 800; letter-spacing: 1.5px; margin:0;}
+    .subtitle {font-size: 12px; color: #6B7280; margin:0;}
     .stButton>button {border-radius: 8px !important; font-weight: 600 !important;}
     div[data-testid="stSelectbox"] > div {border-radius: 10px !important;}
     div[data-testid="stTextInput"] input {border-radius: 12px !important; background: #F9FAFB !important;}
+    /* Pestañas grandes y que sí funcionan */
+    button[data-baseweb="tab"] {font-size: 15px !important; font-weight: 600 !important; padding: 10px 16px !important;}
+    button[data-baseweb="tab"][aria-selected="true"] {color: #0B2A6B !important; border-bottom: 3px solid #0B2A6B !important;}
 </style>
 """, unsafe_allow_html=True)
 
 if "login" not in st.session_state:
     st.session_state.login = False
 if not st.session_state.login:
-    st.markdown('<div style="display:flex;justify-content:center;padding-top:80px;"><div style="width:420px;text-align:center;"><div style="background:#0B2A6B;color:white;width:60px;height:60px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:24px;margin:0 auto;">HS</div><h2 style="margin:10px 0 0;">Hospital Semedic</h2><p style="color:#2563EB;font-weight:700;letter-spacing:1px;font-size:12px;">STAFF MÉDICO & SELLOS</p></div></div>', unsafe_allow_html=True)
+    st.markdown('<div style="display:flex;justify-content:center;padding-top:60px;"><div style="width:420px;text-align:center;"><div style="background:#0B2A6B;color:white;width:60px;height:60px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:24px;margin:0 auto;">HS</div><h2 style="margin:10px 0 0;">Hospital Semedic</h2><p style="color:#0B2A6B;font-weight:800;letter-spacing:1px;font-size:13px;">HONORARIOS MÉDICOS</p></div></div>', unsafe_allow_html=True)
     c = st.columns([1,1,1])[1]
     with c:
         u = st.text_input("Usuario")
@@ -51,19 +42,25 @@ if not st.session_state.login:
                 st.error("Usuario o contraseña incorrecta")
     st.stop()
 
-# --- BARRA SUPERIOR IGUAL A TU FOTO ---
-st.markdown(f"""
-<div class="topbar">
-  <div style="display:flex;align-items:center;gap:30px;">
-    <div class="logo-box"><div class="hs">HS</div><div><div class="title1">Hospital Semedic</div><div class="title2">STAFF MÉDICO & SELLOS</div></div></div>
-    <div class="nav"><b>Directorio Médico</b><span>Honorarios</span><span>Importar</span><span>Auditoría</span><span>Gestión de Usuarios</span></div>
-  </div>
-  <div style="display:flex;align-items:center;gap:10px;">
-    <span>🔔 <b style="background:#EF4444;color:white;border-radius:50%;padding:1px 6px;font-size:11px;">71</b></span>
-    <div class="user-chip"><div class="avatar">M</div><div><b>{st.session_state.usuario}</b><br><span style="font-size:10px;color:#6B7280;">{st.session_state.rol}</span></div><span>↗</span></div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+# --- CABECERA REAL Y FUNCIONAL: NO ES DE ADORNO ---
+col_logo, col_user = st.columns([4, 1])
+with col_logo:
+    st.markdown("""
+    <div class="header-real">
+      <div class="hs">HS</div>
+      <div>
+        <p class="title1">Hospital Semedic</p>
+        <p class="title2">HONORARIOS MÉDICOS</p>
+        <p class="subtitle">Control de honorarios, estados de trámite y pago al médico al 60%</p>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+with col_user:
+    st.write(f"👤 **{st.session_state.usuario}**")
+    st.caption(st.session_state.rol)
+    if st.button("Salir", use_container_width=True):
+        st.session_state.login = False
+        st.rerun()
 
 conn = sqlite3.connect("honorarios.db", check_same_thread=False)
 conn.execute("""CREATE TABLE IF NOT EXISTS honorarios (
@@ -172,7 +169,6 @@ def leer_excel_auto(archivo):
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
-# --- DATOS ---
 try:
     df_all_hon = arreglar_df(cargar_honorarios())
     df_med = pd.read_sql("SELECT * FROM medicos", conn)
@@ -180,25 +176,21 @@ except:
     df_all_hon = pd.DataFrame()
     df_med = pd.DataFrame()
 
-# --- PESTAÑAS ESTILO TU FOTO: Directorio | Honorarios | Importar | etc ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Directorio Médico", "💰 Honorarios", "📂 Importar Archivos", "🔄 Actualizar Estados por Excel", "⚙️ Gestión"])
+# --- ESTAS SÍ SON LAS PESTAÑAS QUE FUNCIONAN, NO LA BARRA DE ADORNO ---
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Directorio Médico", "💰 Honorarios Médicos", "📂 Importar Archivos", "🔄 Actualizar Estados por Excel", "⚙️ Gestión"])
 
 with tab1:
     st.write("")
-    # Buscador grande como tu foto
     col_s, col_e = st.columns([3, 1])
     with col_s:
         buscar = st.text_input("🔍 Buscar", placeholder="Buscar por nombre, apellido, cédula, especialidad o código SENESCYT...", label_visibility="collapsed")
     with col_e:
-        # Especialidades
         especialidades = ["Todas las Especialidades"] + sorted(df_med["especialidad"].dropna().astype(str).unique().tolist()) if len(df_med) > 0 and "especialidad" in df_med.columns else ["Todas las Especialidades"]
         esp_sel = st.selectbox("Especialidad", [f"{e} ({len(df_med[df_med['especialidad']==e])})" if e != "Todas las Especialidades" else f"Todas las Especialidades ({len(df_med)})" for e in especialidades], label_visibility="collapsed")
-    # Píldoras como tu foto: Activos / Inactivos / Todos
-    col_p1, col_p2, col_p3, col_p4 = st.columns([1, 1, 1, 2])
-    # Contamos
     total_medicos = len(df_med)
     con_firma = len(df_med[df_med["registro_senescyt"].astype(str).str.strip() != ""]) if len(df_med) > 0 and "registro_senescyt" in df_med.columns else 0
     sin_firma = total_medicos - con_firma
+    col_p1, col_p2, col_p3, col_p4 = st.columns([1, 1, 1, 2])
     with col_p1:
         filtro_activo = st.selectbox("Estado", [f"Activos ({total_medicos})", f"Inactivos (0)", f"Todos ({total_medicos})"], label_visibility="collapsed")
     with col_p2:
@@ -207,9 +199,8 @@ with tab1:
         st.write(f"Mostrando **{total_medicos}** médicos")
     with col_p4:
         buf_med = crear_excel_bien({"Medicos": df_med})
-        st.download_button("📥 Descargar Informe (Excel, Word, PDF)", data=buf_med, file_name="Directorio_Medico.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        st.download_button("📥 Descargar Informe (Excel)", data=buf_med, file_name="Directorio_Medico.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
     st.divider()
-    # Filtrar médicos
     df_med_mostrar = df_med.copy()
     if buscar:
         df_med_mostrar = df_med_mostrar[df_med_mostrar.apply(lambda r: buscar.lower() in str(r["nombre"]).lower() or buscar.lower() in str(r["cedula"]).lower() or buscar.lower() in str(r["especialidad"]).lower() or buscar.lower() in str(r["registro_senescyt"]).lower(), axis=1)]
@@ -217,11 +208,9 @@ with tab1:
         df_med_mostrar = df_med_mostrar[df_med_mostrar["registro_senescyt"].astype(str).str.strip() != ""]
     if "Sin firma" in filtro_firma:
         df_med_mostrar = df_med_mostrar[df_med_mostrar["registro_senescyt"].astype(str).str.strip() == ""]
-    # Tarjetas de médicos como en tu foto, en columnas
     if len(df_med_mostrar) == 0:
-        st.info("Aún no hay médicos. Ve a Gestión > Cargar médicos por archivo o agrega uno manual.")
+        st.info("Aún no hay médicos. Agrega uno abajo o carga un archivo.")
     else:
-        # Tabla limpia estilo tu foto
         df_show = df_med_mostrar.copy()
         if "nombre" in df_show.columns:
             df_show = df_show.rename(columns={"nombre": "Médico", "cedula": "Cédula", "especialidad": "Especialidad", "registro_senescyt": "Código SENESCYT"})
@@ -279,8 +268,7 @@ with tab1:
                 st.error(f"Error: {e}")
 
 with tab2:
-    st.write("")
-    # Buscador Honorarios mismo estilo
+    st.write("### 💰 Honorarios Médicos")
     col_s2, col_e2 = st.columns([3, 1])
     with col_s2:
         buscar_hon = st.text_input("🔍 Buscar honorarios", placeholder="Buscar por paciente, médico, trámite, código...", label_visibility="collapsed", key="buscar_hon")
@@ -319,11 +307,9 @@ with tab2:
         st.write(f"Mostrando **{len(df)}** trámites")
         cols_mostrar = [c for c in ["id", "medico", "paciente", "fecha", "codigo", "descripcion", "valor", "valor_60", "seguro", "tramite", "estado_tramite", "estado_pago"] if c in df.columns]
         st.dataframe(df[cols_mostrar], use_container_width=True, hide_index=True)
-        # Marcar pago
         df["seleccionar"] = False
         cols_edit = [c for c in ["seleccionar", "id", "medico", "paciente", "codigo", "tramite", "valor_60", "estado_tramite", "estado_pago"] if c in df.columns]
         df_edit = st.data_editor(df[cols_edit], use_container_width=True, hide_index=True, key="editor_pagos_new")
-        # Obtener seleccionados
         try:
             ids_sel = df_edit[df_edit["seleccionar"] == True]["id"].tolist() if "seleccionar" in df_edit.columns else []
         except:
@@ -348,7 +334,7 @@ with tab2:
 
 with tab3:
     st.write("### 📂 Importar Archivos - Sube y listo, actualiza solo")
-    st.info("Solo sube el archivo. La app lee sola el Estado y actualiza. Tú solo te encargas de que el archivo venga con los estados claros.")
+    st.info("Solo sube el archivo. La app lee sola el Estado y actualiza.")
     df_existente = arreglar_df(cargar_honorarios())
     st.write(f"Ya tienes: **{len(df_existente)}** registros")
     archivo = st.file_uploader("Sube tu archivo Excel", type=["xlsx", "xls", "csv"], key="import1_new")
@@ -456,6 +442,3 @@ with tab5:
     df_sin = df_sin[(df_sin["medico"] == "SIN ASIGNAR") | (df_sin["medico"] == "") | (df_sin["medico"].isna())] if len(df_sin) > 0 else df_sin
     st.write(f"Líneas sin médico: {len(df_sin)}")
     st.dataframe(df_sin, use_container_width=True)
-    if st.button("Salir"):
-        st.session_state.login = False
-        st.rerun()
