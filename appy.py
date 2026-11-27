@@ -62,7 +62,27 @@ ESTADOS = ["PENDIENTE","ENTREGADO","RECIBIDO ISSPOL","AUDITADO DOCUMENTAL","LIQU
 
 st.title("SEMEDIC • Honorarios Médicos")
 menu = st.sidebar.selectbox("Menú", ["Dashboard","Nuevo Honorario","Importar Archivos","Sin Médico Asignado","Médicos","Actualizar Trámites","Paquetes Desglosados","Listado / Buscar"])
-
+if menu == "Importar Archivos":
+    st.subheader("📂 Importar Archivos")
+    st.write("Sube tu Excel de honorarios. La app va a leer la hoja FORMATO FINAL.")
+    archivo = st.file_uploader("Sube tu archivo Excel", type=["xlsx","xls"])
+    if archivo is not None:
+        try:
+            xls = pd.ExcelFile(archivo)
+            st.write("Hojas encontradas:", xls.sheet_names)
+            hoja = "FORMATO FINAL  " if "FORMATO FINAL  " in xls.sheet_names else "FORMATO FINAL" if "FORMATO FINAL" in xls.sheet_names else xls.sheet_names[0]
+            df_imp = pd.read_excel(archivo, sheet_name=hoja)
+            df_imp.columns = [str(c).strip() for c in df_imp.columns]
+            st.success(f"Hoja leída: {hoja} - {len(df_imp)} filas")
+            st.dataframe(df_imp.head(20))
+            # Quitar filas de totales / vacías
+            df_imp = df_imp.dropna(subset=[df_imp.columns[2]])
+            df_imp = df_imp[~df_imp.iloc[:,2].astype(str).str.contains("Suma|Total|Etiquetas", na=False)]
+            st.info(f"Filas válidas para cargar: {len(df_imp)}")
+            if st.button("💾 Cargar estos honorarios a la base"):
+                st.success("¡Listo! Ya se leyó tu archivo. Ahora dime y te pongo el guardado en la base.")
+        except Exception as e:
+            st.error(f"Error leyendo el archivo: {e}")
 if menu == "Dashboard":
     df = pd.read_sql("SELECT * FROM honorarios", conn)
     if len(df)==0: st.info("Aún no hay registros. Ve a Nuevo Honorario.")
