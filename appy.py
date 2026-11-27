@@ -63,26 +63,64 @@ ESTADOS = ["PENDIENTE","ENTREGADO","RECIBIDO ISSPOL","AUDITADO DOCUMENTAL","LIQU
 st.title("SEMEDIC • Honorarios Médicos")
 menu = st.sidebar.selectbox("Menú", ["Dashboard","Nuevo Honorario","Importar Archivos","Sin Médico Asignado","Médicos","Actualizar Trámites","Paquetes Desglosados","Listado / Buscar"])
 if menu == "Importar Archivos":
-    st.subheader("📂 Importar Archivos")
-    st.write("Sube tu Excel de honorarios. La app va a leer la hoja FORMATO FINAL.")
+    st.subheader("📂 Importar Archivos - Esta es la base de toda la app")
+    st.write("Sube tu Excel y se va a alimentar Dashboard, Buscador y Estados.")
     archivo = st.file_uploader("Sube tu archivo Excel", type=["xlsx","xls"])
     if archivo is not None:
         try:
             xls = pd.ExcelFile(archivo)
-            st.write("Hojas encontradas:", xls.sheet_names)
             hoja = "FORMATO FINAL  " if "FORMATO FINAL  " in xls.sheet_names else "FORMATO FINAL" if "FORMATO FINAL" in xls.sheet_names else xls.sheet_names[0]
             df_imp = pd.read_excel(archivo, sheet_name=hoja)
-            df_imp.columns = [str(c).strip() for c in df_imp.columns]
-            st.success(f"Hoja leída: {hoja} - {len(df_imp)} filas")
-            st.dataframe(df_imp.head(20))
-            # Quitar filas de totales / vacías
-            df_imp = df_imp.dropna(subset=[df_imp.columns[2]])
-            df_imp = df_imp[~df_imp.iloc[:,2].astype(str).str.contains("Suma|Total|Etiquetas", na=False)]
-            st.info(f"Filas válidas para cargar: {len(df_imp)}")
-            if st.button("💾 Cargar estos honorarios a la base"):
-                st.success("¡Listo! Ya se leyó tu archivo. Ahora dime y te pongo el guardado en la base.")
+            df_imp.columns = [str(c).strip().upper() for c in df_imp.columns]
+            st.write("Hoja leída:", hoja, "- Columnas:", list(df_imp.columns))
+
+            # Buscar columnas por nombre
+            def buscar_col(posibles):
+                for p in posibles:
+                    for c in df_imp.columns:
+                        if p in c:
+                            return c
+                return None
+            c_paciente = buscar_col(["NOMBRES DEL PACIENTE", "PACIENTE"])
+            c_medico = buscar_col(["NOMBRE DEL MEDICO", "MEDICO"])
+            c_fecha = buscar_col(["FECHA"])
+            c_codigo = buscar_col(["CODIGO PLANILLADO", "CODIGO"])
+            c_desc = buscar_col(["DESCRIPCION"])
+            c_valor = buscar_col(["VALOR DE CODIGO", "VALOR"])
+            c_seguro = buscar_col(["SEGURO"])
+            c_tramite = buscar_col(["N TRAMITE", "TRAMITE"])
+            c_mes = buscar_col(["MES Y AÑO", "MES"])
+
+            df2 = pd.DataFrame()
+            df2["paciente"] = df_imp[c_paciente] if c_paciente else ""
+            df2["medico"] = df_imp[c_medico] if c_medico else ""
+            df2["fecha"] = df_imp[c_fecha] if c_fecha else ""
+            df2["codigo"] = df_imp[c_codigo] if c_codigo else ""
+            df2["descripcion"] = df_imp[c_desc] if c_desc else ""
+            df2["valor"] = pd.to_numeric(df_imp[c_valor], errors="coerce").fillna(0) if c_valor else 0
+            df2["seguro"] = df_imp[c_seguro] if c_seguro else ""
+            df2["tramite"] = df_imp[c_tramite] if c_tramite else ""
+            df2["mes_anio"] = df_imp[c_mes] if c_mes else ""
+            df2 = df2[df2["paciente"].astype(str).str.strip() != ""]
+            df2 = df2[~df2["paciente"].astype(str).str.contains("Suma|Total|Etiquetas", na=False)]
+            # Cálculos que pediste
+            df2["valor_40"] = (df2["valor"] * 0.40).round(2)
+            df2["valor_50"] = (df2["valor"] * 0.50).round(2)
+            df2["valor_60"] = (df2["valor"] * 0.60).round(2)
+            df2["estado"] = "Pendiente"
+            df2["estado_tramite"] = "Pendiente"
+
+            st.success(f"Listo para cargar: {len(df2)} filas válidas")
+            st.dataframe(df2.head(20))
+
+            if st.button("💾 Cargar y alimentar toda la app"):
+                conn = sqlite3.connect("honorarios.db")
+                df2.to_sql("honorarios", conn, if_exists="append", index=False)
+                conn.close()
+                st.success("¡Cargado! Ya alimenta Dashboard, Buscador y Estados. Ve a Buscador y escribe el nombre del médico.")
+                st.balloons()
         except Exception as e:
-            st.error(f"Error leyendo el archivo: {e}")
+            st.error(f"Error: {e}")
 if menu == "Dashboard":
     df = pd.read_sql("SELECT * FROM honorarios", conn)
     if len(df)==0: st.info("Aún no hay registros. Ve a Nuevo Honorario.")
