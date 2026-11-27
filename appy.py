@@ -28,22 +28,37 @@ if st.sidebar.button("Salir"):
 
 conn = sqlite3.connect("honorarios.db", check_same_thread=False)
 conn.execute("""CREATE TABLE IF NOT EXISTS honorarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     paciente TEXT, medico TEXT, fecha TEXT, codigo TEXT,
     descripcion TEXT, valor REAL, seguro TEXT, tramite TEXT,
     mes_anio TEXT, valor_40 REAL, valor_50 REAL, valor_60 REAL,
     estado TEXT, estado_tramite TEXT, estado_pago TEXT, valor_pagado REAL,
     es_paquete INTEGER DEFAULT 0
 )""")
-for col, tipo in [("estado_pago","TEXT DEFAULT 'Pendiente'"), ("valor_pagado","REAL DEFAULT 0"), ("es_paquete","INTEGER DEFAULT 0"), ("valor_40","REAL DEFAULT 0"), ("valor_50","REAL DEFAULT 0"), ("valor_60","REAL DEFAULT 0"), ("estado_tramite","TEXT DEFAULT 'Pendiente'")]:
+# Aseguramos columnas sin usar id
+for col, tipo in [("estado_pago","TEXT DEFAULT 'Pendiente'"), ("valor_pagado","REAL DEFAULT 0"), ("es_paquete","INTEGER DEFAULT 0"), ("valor_40","REAL DEFAULT 0"), ("valor_50","REAL DEFAULT 0"), ("valor_60","REAL DEFAULT 0"), ("estado_tramite","TEXT DEFAULT 'Pendiente'"), ("estado","TEXT DEFAULT 'Pendiente'"), ("paciente","TEXT"), ("medico","TEXT"), ("tramite","TEXT"), ("codigo","TEXT")]:
     try:
-        conn.execute(f"ALTER TABLE honorarios ADD COLUMN {col} {tipo}")
+        cols_ex = [r[1] for r in conn.execute("PRAGMA table_info(honorarios)").fetchall()]
+        if col not in cols_ex:
+            conn.execute(f"ALTER TABLE honorarios ADD COLUMN {col} {tipo}")
     except:
         pass
 conn.execute("""CREATE TABLE IF NOT EXISTS medicos (
     nombre TEXT, cedula TEXT, especialidad TEXT, registro_senescyt TEXT
 )""")
 conn.commit()
+
+# --- CLAVE: Usamos rowid como identificador, NUNCA id, para que no falle en bases viejas ---
+def cargar_honorarios():
+    df = pd.read_sql("SELECT rowid as id, * FROM honorarios", conn)
+    # Si hay columna id duplicada, la quitamos, nos quedamos con rowid
+    if "id" in df.columns:
+        # rowid ya es id, si hay otro id lo borramos
+        cols = list(df.columns)
+        # pandas deja rowid como id, el otro queda como id_1 o similar, lo ignoramos
+        pass
+    # Quitamos columnas duplicadas
+    df = df.loc[:, ~df.columns.duplicated()]
+    return df
 
 def arreglar_df(df):
     if len(df) == 0:
@@ -103,27 +118,24 @@ def crear_excel_bien(dfs_dict):
     return buffer
 
 def limpiar_estado(valor):
+    # Respeta tal cual tu estado: Auditado Documental, Auditado Médico, Recibido ISSPOL, Pagado, Liquidado, etc.
     if pd.isna(valor) or str(valor).strip() == "":
         return "Pendiente"
-    v = str(valor).strip().upper()
-    if "PAGAD" in v:
+    v = str(valor).strip()
+    # Solo normalizamos los que son iguales pero escritos diferente
+    vu = v.upper()
+    if vu in ["PAGADO", "PAGADA"]:
         return "Pagado"
-    if "LIQUID" in v:
+    if vu in ["LIQUIDADO", "LIQUIDADA"]:
         return "Liquidado"
-    if "DESPACH" in v:
+    if vu in ["DESPACHADO", "DESPACHADA"]:
         return "Despachado"
-    if "PENDIENT" in v:
+    if vu in ["PENDIENTE"]:
         return "Pendiente"
-    if "TRAMITE" in v or "PROCESO" in v or "EN TRAM" in v:
-        return "En Trámite"
-    if "OBSERV" in v:
-        return "Observado"
-    if "RECHAZ" in v or "NEGAD" in v:
-        return "Rechazado"
-    return str(valor).strip().title()
+    # Si no, dejamos EXACTO como viene en tu Excel, sin cambiar ISSPOL a Isspol
+    return v
 
 def buscar_col(cols, posibles):
-    # Busca la columna aunque se llame un poco diferente, ej: ESTADO ISSPOL, ESTADO TRAMITE, etc.
     cols_norm = {str(c).strip().upper().replace("Á","A").replace("É","E").replace("Í","I").replace("Ó","O").replace("Ú","U"): c for c in cols}
     for p in posibles:
         pn = p.upper().replace("Á","A").replace("É","E")
@@ -134,31 +146,29 @@ def buscar_col(cols, posibles):
                 return orig
     return None
 
-# Lee el Excel y lo deja listo, sin que tú marques nada
 def leer_excel_auto(archivo):
     if archivo.name.endswith(".csv"):
         df = pd.read_csv(archivo)
     else:
         xls = pd.ExcelFile(archivo)
-        # Si tiene FORMATO FINAL usa esa, si no la primera hoja
         hoja = "FORMATO FINAL  " if "FORMATO FINAL  " in xls.sheet_names else xls.sheet_names[0]
         df = pd.read_excel(archivo, sheet_name=hoja)
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
 try:
-    df_resumen = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
+    df_resumen = arreglar_df(cargar_honorarios())
     df_med = pd.read_sql("SELECT * FROM medicos", conn)
     todos_medicos = sorted(set(df_resumen["medico"].dropna().astype(str).str.strip().unique().tolist() + df_med["nombre"].dropna().astype(str).str.strip().unique().tolist()) - set(["", "SIN ASIGNAR", "nan"])) if len(df_resumen) > 0 else []
     st.success(f"📋 Total registros: {len(df_resumen)} | 👨‍⚕️ Médicos: {len(todos_medicos)}")
-except:
-    st.info("Aún no hay datos")
+except Exception as e:
+    st.info(f"Aún no hay datos: {e}")
 
 menu = st.sidebar.selectbox("Menú", ["Dashboard", "Buscador", "Importar Archivos", "Sin Médico Asignado", "Médicos", "Actualizar Estados", "Actualizar Estados por Excel"])
 
 if menu == "Dashboard":
     st.subheader("Dashboard - Todo se paga al 60%")
-    df = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
+    df = arreglar_df(cargar_honorarios())
     if len(df) == 0:
         st.info("Aún no hay datos.")
     else:
@@ -177,11 +187,11 @@ if menu == "Dashboard":
 
 if menu == "Buscador":
     st.subheader("🔍 Buscador - Todo con flechita")
-    df_all = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
+    df_all = arreglar_df(cargar_honorarios())
     if len(df_all) == 0:
         st.info("Aún no hay datos.")
     else:
-        buscar_tramite_texto = st.text_input("🔍 Escribe el N° de Trámite aquí arriba", placeholder="Ej: 12345")
+        buscar_tramite_texto = st.text_input("🔍 Escribe el N° de Trámite aquí arriba", placeholder="Ej: A-2763-2025-ISSPOL")
         col_m, col_t = st.columns(2)
         lista_medicos = ["Todos los médicos"] + sorted([m for m in df_all["medico"].dropna().astype(str).str.strip().unique() if m not in ["", "nan"]])
         medico_sel = col_m.selectbox("👨‍⚕️ Selecciona el Médico ⬇️", lista_medicos)
@@ -211,8 +221,8 @@ if menu == "Buscador":
 
 if menu == "Importar Archivos":
     st.subheader("📂 Importar Archivos - Sube y listo, actualiza solo")
-    st.info("Solo sube el archivo. La app lee sola el Estado y actualiza. Tú solo te encargas de que el archivo venga con los estados claros.")
-    df_existente = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
+    st.info("Solo sube el archivo. La app lee sola el Estado y actualiza.")
+    df_existente = arreglar_df(cargar_honorarios())
     st.info(f"Ya tienes: {len(df_existente)} registros")
     archivo = st.file_uploader("Sube tu archivo Excel", type=["xlsx", "xls", "csv"], key="import1")
     if archivo is not None:
@@ -248,7 +258,6 @@ if menu == "Importar Archivos":
             df2["valor_60"] = (df2["valor"] * 0.60).round(2)
             df2["valor_pagado"] = 0
             df2["es_paquete"] = 0
-            # --- ACTUALIZA SOLO, SIN BOTÓN DE CARGAR ---
             nuevos = 0
             actualizados = 0
             existentes = {}
@@ -259,7 +268,7 @@ if menu == "Importar Archivos":
             for _, row in df2.iterrows():
                 clave = (str(row["paciente"]).strip(), str(row["tramite"]).strip(), str(row["codigo"]).strip())
                 if clave in existentes:
-                    conn.execute("UPDATE honorarios SET estado_tramite=?, estado=? WHERE id=?", (row["estado_tramite"], row["estado_tramite"], int(existentes[clave])))
+                    conn.execute("UPDATE honorarios SET estado_tramite=?, estado=? WHERE rowid=?", (row["estado_tramite"], row["estado_tramite"], int(existentes[clave])))
                     actualizados += 1
                 else:
                     conn.execute("INSERT INTO honorarios (paciente, medico, fecha, codigo, descripcion, valor, seguro, tramite, mes_anio, valor_40, valor_50, valor_60, estado, estado_tramite, estado_pago, valor_pagado, es_paquete) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (str(row["paciente"]), str(row["medico"]), str(row["fecha"]), str(row["codigo"]), str(row["descripcion"]), float(row["valor"]), str(row["seguro"]), str(row["tramite"]), str(row["mes_anio"]), float(row["valor_40"]), float(row["valor_50"]), float(row["valor_60"]), str(row["estado_tramite"]), str(row["estado_tramite"]), "Pendiente", 0, 0))
@@ -267,34 +276,28 @@ if menu == "Importar Archivos":
             conn.commit()
             st.success(f"✅ ¡Listo! Automático. Nuevos: {nuevos} | Estados actualizados: {actualizados}")
             st.balloons()
-            if c_estado:
-                st.write("Estados que traía tu archivo:")
-                st.dataframe(df_imp[c_estado].astype(str).value_counts().reset_index(), use_container_width=True)
         except Exception as e:
             st.error(f"Error: {e}")
 
-# --- ACTUALIZAR ESTADOS POR EXCEL - SUBE Y LISTO, SIN MARCAR NADA ---
 if menu == "Actualizar Estados por Excel":
     st.subheader("🔄 Actualizar Estados por Excel - Solo sube, no marques nada")
-    st.success("Tú solo sube el archivo con los estados claros. La app actualiza sola. No tienes que elegir columna, ni hoja, ni darle a otro botón.")
-    st.write("Tu archivo debe tener: Trámite, Paciente y Estado (Pagado, Liquidado, Despachado, Pendiente...)")
+    st.success("Tú solo sube el archivo con los estados claros. La app actualiza sola.")
     archivo2 = st.file_uploader("Sube el Excel con los estados", type=["xlsx", "xls", "csv"], key="import_estados")
     if archivo2 is not None:
         try:
             df_imp = leer_excel_auto(archivo2)
             cols = list(df_imp.columns)
             c_estado2 = buscar_col(cols, ["ESTADO DEL TRAMITE", "ESTADO TRAMITE", "ESTADO", "SITUACION", "ESTATUS"])
-            c_tramite2 = buscar_col(cols, ["N TRAMITE", "TRAMITE", "NUMERO TRAMITE"])
+            c_tramite2 = buscar_col(cols, ["N TRAMITE", "TRAMITE", "NUMERO TRAMITE", "NUMERO DE TRAMITE"])
             c_paciente2 = buscar_col(cols, ["NOMBRES DEL PACIENTE", "PACIENTE"])
             c_codigo2 = buscar_col(cols, ["CODIGO PLANILLADO", "CODIGO"])
             if not c_estado2 or not c_tramite2:
-                st.error("No encontré la columna ESTADO o TRÁMITE en tu archivo. Revisa que tu archivo tenga una columna que diga ESTADO y otra que diga TRÁMITE.")
-                st.write("Columnas que tiene tu archivo:", cols)
+                st.error("No encontré la columna ESTADO o TRÁMITE.")
+                st.write("Columnas:", cols)
             else:
                 st.write(f"Leído: Estado = {c_estado2} | Trámite = {c_tramite2}")
                 st.write("Estados que trae tu archivo:")
                 st.dataframe(df_imp[c_estado2].astype(str).value_counts().reset_index(), use_container_width=True)
-                # --- ACTUALIZA SOLO, SIN BOTÓN ---
                 actualizados = 0
                 no_encontrados = 0
                 for _, row in df_imp.iterrows():
@@ -304,13 +307,13 @@ if menu == "Actualizar Estados por Excel":
                     estado_nuevo = limpiar_estado(row[c_estado2])
                     cur = None
                     if pac and tram and cod:
-                        cur = conn.execute("SELECT id FROM honorarios WHERE paciente=? AND tramite=? AND codigo=?", (pac, tram, cod)).fetchone()
-                    if not cur and tram != "":
-                        cur = conn.execute("SELECT id FROM honorarios WHERE tramite=?", (tram,)).fetchone()
+                        cur = conn.execute("SELECT rowid FROM honorarios WHERE paciente=? AND tramite=? AND codigo=?", (pac, tram, cod)).fetchone()
+                    if not cur and tram != "" and tram.lower() != "nan":
+                        cur = conn.execute("SELECT rowid FROM honorarios WHERE tramite=?", (tram,)).fetchone()
                     if not cur and pac and cod:
-                        cur = conn.execute("SELECT id FROM honorarios WHERE paciente=? AND codigo=?", (pac, cod)).fetchone()
+                        cur = conn.execute("SELECT rowid FROM honorarios WHERE paciente=? AND codigo=?", (pac, cod)).fetchone()
                     if cur:
-                        conn.execute("UPDATE honorarios SET estado_tramite=?, estado=? WHERE id=?", (estado_nuevo, estado_nuevo, int(cur[0])))
+                        conn.execute("UPDATE honorarios SET estado_tramite=?, estado=? WHERE rowid=?", (estado_nuevo, estado_nuevo, int(cur[0])))
                         actualizados += 1
                     else:
                         no_encontrados += 1
@@ -318,13 +321,14 @@ if menu == "Actualizar Estados por Excel":
                 st.success(f"✅ ¡Actualizado solo! Actualizados: {actualizados} | No encontrados: {no_encontrados}")
                 st.balloons()
                 if no_encontrados > 0:
-                    st.warning("Los no encontrados es porque ese N° de Trámite aún no está cargado en la base.")
+                    st.warning("Los no encontrados es porque ese N° de Trámite aún no está cargado en la base. Primero cárgalo en Importar Archivos.")
         except Exception as e:
             st.error(f"Error: {e}")
 
 if menu == "Sin Médico Asignado":
     st.subheader("✏️ Sin Médico Asignado")
-    df_sin = arreglar_df(pd.read_sql("SELECT * FROM honorarios WHERE medico='SIN ASIGNAR' OR medico='' OR medico IS NULL", conn))
+    df_sin = arreglar_df(cargar_honorarios())
+    df_sin = df_sin[(df_sin["medico"] == "SIN ASIGNAR") | (df_sin["medico"] == "") | (df_sin["medico"].isna())]
     st.write(f"Líneas sin médico: {len(df_sin)}")
     st.dataframe(df_sin, use_container_width=True)
 
@@ -350,7 +354,6 @@ if menu == "Médicos":
                 st.rerun()
     st.divider()
     st.write("### 📂 FORMA 2: Cargar archivo con médicos - Sube y listo")
-    st.info("Sube tu Excel de médicos. La app lee sola la columna de Nombre. No tienes que marcar nada.")
     buf_plantilla = crear_excel_bien({"Medicos": pd.DataFrame([{"Nombre": "MARIO PEREZ", "Cedula": "0912345678", "Especialidad": "Cirugia", "Registro Senescyt": "12345"}])})
     st.download_button("📥 Descargar plantilla de médicos", data=buf_plantilla, file_name="Plantilla_Medicos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     archivo_medicos = st.file_uploader("Sube tu archivo Excel de médicos", type=["xlsx", "xls"], key="upload_medicos")
@@ -362,7 +365,7 @@ if menu == "Médicos":
             c_ced_m = buscar_col(cols_m, ["CEDULA", "CI", "IDENTIFICACION"])
             c_esp_m = buscar_col(cols_m, ["ESPECIALIDAD"])
             if not c_nombre_m:
-                st.error("No encontré columna de Nombre en tu archivo de médicos.")
+                st.error("No encontré columna de Nombre.")
                 st.write("Columnas:", cols_m)
             else:
                 df_nuevos = pd.DataFrame()
@@ -378,7 +381,7 @@ if menu == "Médicos":
                 for _, r in df_nuevos_f.iterrows():
                     conn.execute("INSERT INTO medicos (nombre,cedula,especialidad,registro_senescyt) VALUES (?,?,?,?)", (r["nombre"], r["cedula"], r["especialidad"], r["registro_senescyt"]))
                 conn.commit()
-                st.success(f"✅ ¡Listo! Se cargaron {len(df_nuevos_f)} médicos nuevos, sin marcar nada.")
+                st.success(f"✅ Se cargaron {len(df_nuevos_f)} médicos nuevos.")
                 st.balloons()
                 st.rerun()
         except Exception as e:
@@ -388,7 +391,7 @@ if menu == "Médicos":
 
 if menu == "Actualizar Estados":
     st.subheader("🔄 Actualizar Estados - Manual con flechitas")
-    df_all = arreglar_df(pd.read_sql("SELECT * FROM honorarios", conn))
+    df_all = arreglar_df(cargar_honorarios())
     if len(df_all) == 0:
         st.info("Aún no hay datos.")
     else:
@@ -410,13 +413,13 @@ if menu == "Actualizar Estados":
             df_f = df_f[df_f["tramite"].astype(str).str.contains(buscar_t.strip(), na=False)]
         st.write(f"Mostrando {len(df_f)} trámites")
         df_editable = df_f[["id", "medico", "paciente", "codigo", "tramite", "valor_60", "estado_tramite", "estado_pago"]].copy()
-        df_editado = st.data_editor(df_editable, use_container_width=True, hide_index=True, key="editor_estados2", column_config={"estado_tramite": st.column_config.SelectboxColumn("Estado Trámite ⬇️", options=["Pendiente", "Pagado", "Liquidado", "Despachado", "En Trámite", "Observado", "Rechazado"]), "estado_pago": st.column_config.SelectboxColumn("Pago al Médico ⬇️", options=["Pendiente", "Pagado"])}, disabled=["id", "medico", "paciente", "codigo", "tramite", "valor_60"])
+        df_editado = st.data_editor(df_editable, use_container_width=True, hide_index=True, key="editor_estados2", column_config={"estado_tramite": st.column_config.SelectboxColumn("Estado Trámite ⬇️", options=["Pendiente", "Pagado", "Liquidado", "Despachado", "En Trámite", "Observado", "Rechazado", "Auditado Documental", "Auditado Médico", "Recibido ISSPOL"]), "estado_pago": st.column_config.SelectboxColumn("Pago al Médico ⬇️", options=["Pendiente", "Pagado"])}, disabled=["id", "medico", "paciente", "codigo", "tramite", "valor_60"])
         if st.button("💾 GUARDAR CAMBIOS", type="primary"):
             cambios = 0
             for _, row in df_editado.iterrows():
                 orig = df_f[df_f["id"] == row["id"]]
                 if len(orig) > 0 and (row["estado_tramite"] != orig.iloc[0]["estado_tramite"] or row["estado_pago"] != orig.iloc[0]["estado_pago"]):
-                    conn.execute("UPDATE honorarios SET estado_tramite=?, estado_pago=?, estado=? WHERE id=?", (row["estado_tramite"], row["estado_pago"], row["estado_tramite"], int(row["id"])))
+                    conn.execute("UPDATE honorarios SET estado_tramite=?, estado_pago=?, estado=? WHERE rowid=?", (row["estado_tramite"], row["estado_pago"], row["estado_tramite"], int(row["id"])))
                     cambios += 1
             conn.commit()
             st.success(f"Se guardaron {cambios} cambios")
