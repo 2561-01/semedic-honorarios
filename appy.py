@@ -112,8 +112,8 @@ if menu == "Importar Archivos":
 
             st.success(f"Listo para cargar: {len(df2)} filas válidas")
             st.dataframe(df2.head(20))
-
-                     if st.button("💾 Cargar y alimentar toda la app"):
+            
+            if st.button("💾 Cargar y alimentar toda la app"):
                 try:
                     conn = sqlite3.connect("honorarios.db")
                     # Si la tabla ya existe con otras columnas, la recreamos con las nuevas
