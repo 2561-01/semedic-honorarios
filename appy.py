@@ -3,28 +3,67 @@ import pandas as pd
 import sqlite3
 import io
 
-st.set_page_config(page_title="SEMEDIC - Honorarios", layout="wide")
+st.set_page_config(page_title="Hospital Semedic - Staff Médico & Sellos", layout="wide")
+
+# --- ESTILO IGUAL A TU FOTO: AZUL OSCURO, BLANCO, VERDE ---
+st.markdown("""
+<style>
+    .block-container {padding-top: 0rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 1400px;}
+    header {visibility: hidden;}
+    .topbar {background: white; border-bottom: 1px solid #E5E7EB; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 999;}
+    .logo-box {display: flex; align-items: center; gap: 10px;}
+    .hs {background: #0B2A6B; color: white; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px;}
+    .title1 {font-weight: 800; font-size: 17px; line-height: 1.1; color: #111827;}
+    .title2 {font-size: 11px; color: #2563EB; font-weight: 700; letter-spacing: 1px;}
+    .nav {display: flex; gap: 18px; font-size: 13px; color: #4B5563;}
+    .nav b {color: #0B2A6B; border-bottom: 2px solid #0B2A6B; padding-bottom: 4px;}
+    .user-chip {background: #F3F4F6; border-radius: 10px; padding: 6px 12px; display: flex; gap: 8px; align-items: center; font-size: 12px;}
+    .avatar {background: #D1D5DB; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;}
+    .btn-blue {background: #0B2A6B; color: white; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; border: none;}
+    .btn-light {background: white; border: 1px solid #D1D5DB; border-radius: 8px; padding: 8px 12px; font-size: 13px;}
+    .search-box {background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 10px 14px; width: 100%;}
+    .card {background: white; border: 1px solid #E5E7EB; border-radius: 16px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
+    .metric-card {background: white; border: 1px solid #E5E7EB; border-radius: 14px; padding: 16px;}
+    .pill-green {background: #047857; color: white; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600;}
+    .pill-dark {background: #111827; color: white; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600;}
+    .pill-light {background: #F3F4F6; color: #374151; border-radius: 8px; padding: 6px 12px; font-size: 13px;}
+    .stButton>button {border-radius: 8px !important; font-weight: 600 !important;}
+    div[data-testid="stSelectbox"] > div {border-radius: 10px !important;}
+    div[data-testid="stTextInput"] input {border-radius: 12px !important; background: #F9FAFB !important;}
+</style>
+""", unsafe_allow_html=True)
 
 if "login" not in st.session_state:
     st.session_state.login = False
 if not st.session_state.login:
-    st.title("SEMEDIC - Honorarios")
-    u = st.text_input("Usuario")
-    p = st.text_input("Contraseña", type="password")
-    if st.button("Entrar"):
-        if u == "admin" and p == "semedic2026":
-            st.session_state.login = True
-            st.session_state.usuario = "admin"
-            st.session_state.rol = "ADMINISTRADOR"
-            st.rerun()
-        else:
-            st.error("Usuario o contraseña incorrecta")
+    st.markdown('<div style="display:flex;justify-content:center;padding-top:80px;"><div style="width:420px;text-align:center;"><div style="background:#0B2A6B;color:white;width:60px;height:60px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:24px;margin:0 auto;">HS</div><h2 style="margin:10px 0 0;">Hospital Semedic</h2><p style="color:#2563EB;font-weight:700;letter-spacing:1px;font-size:12px;">STAFF MÉDICO & SELLOS</p></div></div>', unsafe_allow_html=True)
+    c = st.columns([1,1,1])[1]
+    with c:
+        u = st.text_input("Usuario")
+        p = st.text_input("Contraseña", type="password")
+        if st.button("Entrar", use_container_width=True):
+            if u == "admin" and p == "semedic2026":
+                st.session_state.login = True
+                st.session_state.usuario = "mseijas"
+                st.session_state.rol = "ADMINISTRADOR"
+                st.rerun()
+            else:
+                st.error("Usuario o contraseña incorrecta")
     st.stop()
 
-st.sidebar.write(f"Usuario: {st.session_state.usuario} | Rol: {st.session_state.rol}")
-if st.sidebar.button("Salir"):
-    st.session_state.login = False
-    st.rerun()
+# --- BARRA SUPERIOR IGUAL A TU FOTO ---
+st.markdown(f"""
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:30px;">
+    <div class="logo-box"><div class="hs">HS</div><div><div class="title1">Hospital Semedic</div><div class="title2">STAFF MÉDICO & SELLOS</div></div></div>
+    <div class="nav"><b>Directorio Médico</b><span>Honorarios</span><span>Importar</span><span>Auditoría</span><span>Gestión de Usuarios</span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span>🔔 <b style="background:#EF4444;color:white;border-radius:50%;padding:1px 6px;font-size:11px;">71</b></span>
+    <div class="user-chip"><div class="avatar">M</div><div><b>{st.session_state.usuario}</b><br><span style="font-size:10px;color:#6B7280;">{st.session_state.rol}</span></div><span>↗</span></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 conn = sqlite3.connect("honorarios.db", check_same_thread=False)
 conn.execute("""CREATE TABLE IF NOT EXISTS honorarios (
@@ -34,7 +73,6 @@ conn.execute("""CREATE TABLE IF NOT EXISTS honorarios (
     estado TEXT, estado_tramite TEXT, estado_pago TEXT, valor_pagado REAL,
     es_paquete INTEGER DEFAULT 0
 )""")
-# Aseguramos columnas sin usar id
 for col, tipo in [("estado_pago","TEXT DEFAULT 'Pendiente'"), ("valor_pagado","REAL DEFAULT 0"), ("es_paquete","INTEGER DEFAULT 0"), ("valor_40","REAL DEFAULT 0"), ("valor_50","REAL DEFAULT 0"), ("valor_60","REAL DEFAULT 0"), ("estado_tramite","TEXT DEFAULT 'Pendiente'"), ("estado","TEXT DEFAULT 'Pendiente'"), ("paciente","TEXT"), ("medico","TEXT"), ("tramite","TEXT"), ("codigo","TEXT")]:
     try:
         cols_ex = [r[1] for r in conn.execute("PRAGMA table_info(honorarios)").fetchall()]
@@ -47,16 +85,8 @@ conn.execute("""CREATE TABLE IF NOT EXISTS medicos (
 )""")
 conn.commit()
 
-# --- CLAVE: Usamos rowid como identificador, NUNCA id, para que no falle en bases viejas ---
 def cargar_honorarios():
     df = pd.read_sql("SELECT rowid as id, * FROM honorarios", conn)
-    # Si hay columna id duplicada, la quitamos, nos quedamos con rowid
-    if "id" in df.columns:
-        # rowid ya es id, si hay otro id lo borramos
-        cols = list(df.columns)
-        # pandas deja rowid como id, el otro queda como id_1 o similar, lo ignoramos
-        pass
-    # Quitamos columnas duplicadas
     df = df.loc[:, ~df.columns.duplicated()]
     return df
 
@@ -84,17 +114,6 @@ def arreglar_df(df):
     df["tramite"] = df["tramite"].fillna("").astype(str).str.strip()
     return df
 
-def sacar_seleccionados(df_edit):
-    try:
-        if df_edit is None or len(df_edit) == 0:
-            return []
-        if "seleccionar" not in df_edit.columns or "id" not in df_edit.columns:
-            return []
-        sel = df_edit[df_edit["seleccionar"] == True]
-        return sel["id"].tolist() if len(sel) > 0 else []
-    except:
-        return []
-
 def crear_excel_bien(dfs_dict):
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -118,11 +137,9 @@ def crear_excel_bien(dfs_dict):
     return buffer
 
 def limpiar_estado(valor):
-    # Respeta tal cual tu estado: Auditado Documental, Auditado Médico, Recibido ISSPOL, Pagado, Liquidado, etc.
     if pd.isna(valor) or str(valor).strip() == "":
         return "Pendiente"
     v = str(valor).strip()
-    # Solo normalizamos los que son iguales pero escritos diferente
     vu = v.upper()
     if vu in ["PAGADO", "PAGADA"]:
         return "Pagado"
@@ -132,7 +149,6 @@ def limpiar_estado(valor):
         return "Despachado"
     if vu in ["PENDIENTE"]:
         return "Pendiente"
-    # Si no, dejamos EXACTO como viene en tu Excel, sin cambiar ISSPOL a Isspol
     return v
 
 def buscar_col(cols, posibles):
@@ -156,22 +172,141 @@ def leer_excel_auto(archivo):
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
+# --- DATOS ---
 try:
-    df_resumen = arreglar_df(cargar_honorarios())
+    df_all_hon = arreglar_df(cargar_honorarios())
     df_med = pd.read_sql("SELECT * FROM medicos", conn)
-    todos_medicos = sorted(set(df_resumen["medico"].dropna().astype(str).str.strip().unique().tolist() + df_med["nombre"].dropna().astype(str).str.strip().unique().tolist()) - set(["", "SIN ASIGNAR", "nan"])) if len(df_resumen) > 0 else []
-    st.success(f"📋 Total registros: {len(df_resumen)} | 👨‍⚕️ Médicos: {len(todos_medicos)}")
-except Exception as e:
-    st.info(f"Aún no hay datos: {e}")
+except:
+    df_all_hon = pd.DataFrame()
+    df_med = pd.DataFrame()
 
-menu = st.sidebar.selectbox("Menú", ["Dashboard", "Buscador", "Importar Archivos", "Sin Médico Asignado", "Médicos", "Actualizar Estados", "Actualizar Estados por Excel"])
+# --- PESTAÑAS ESTILO TU FOTO: Directorio | Honorarios | Importar | etc ---
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Directorio Médico", "💰 Honorarios", "📂 Importar Archivos", "🔄 Actualizar Estados por Excel", "⚙️ Gestión"])
 
-if menu == "Dashboard":
-    st.subheader("Dashboard - Todo se paga al 60%")
-    df = arreglar_df(cargar_honorarios())
-    if len(df) == 0:
-        st.info("Aún no hay datos.")
+with tab1:
+    st.write("")
+    # Buscador grande como tu foto
+    col_s, col_e = st.columns([3, 1])
+    with col_s:
+        buscar = st.text_input("🔍 Buscar", placeholder="Buscar por nombre, apellido, cédula, especialidad o código SENESCYT...", label_visibility="collapsed")
+    with col_e:
+        # Especialidades
+        especialidades = ["Todas las Especialidades"] + sorted(df_med["especialidad"].dropna().astype(str).unique().tolist()) if len(df_med) > 0 and "especialidad" in df_med.columns else ["Todas las Especialidades"]
+        esp_sel = st.selectbox("Especialidad", [f"{e} ({len(df_med[df_med['especialidad']==e])})" if e != "Todas las Especialidades" else f"Todas las Especialidades ({len(df_med)})" for e in especialidades], label_visibility="collapsed")
+    # Píldoras como tu foto: Activos / Inactivos / Todos
+    col_p1, col_p2, col_p3, col_p4 = st.columns([1, 1, 1, 2])
+    # Contamos
+    total_medicos = len(df_med)
+    con_firma = len(df_med[df_med["registro_senescyt"].astype(str).str.strip() != ""]) if len(df_med) > 0 and "registro_senescyt" in df_med.columns else 0
+    sin_firma = total_medicos - con_firma
+    with col_p1:
+        filtro_activo = st.selectbox("Estado", [f"Activos ({total_medicos})", f"Inactivos (0)", f"Todos ({total_medicos})"], label_visibility="collapsed")
+    with col_p2:
+        filtro_firma = st.selectbox("Firma", [f"Todas ({total_medicos})", f"Con firma ({con_firma})", f"Sin firma ({sin_firma})"], label_visibility="collapsed")
+    with col_p3:
+        st.write(f"Mostrando **{total_medicos}** médicos")
+    with col_p4:
+        buf_med = crear_excel_bien({"Medicos": df_med})
+        st.download_button("📥 Descargar Informe (Excel, Word, PDF)", data=buf_med, file_name="Directorio_Medico.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+    st.divider()
+    # Filtrar médicos
+    df_med_mostrar = df_med.copy()
+    if buscar:
+        df_med_mostrar = df_med_mostrar[df_med_mostrar.apply(lambda r: buscar.lower() in str(r["nombre"]).lower() or buscar.lower() in str(r["cedula"]).lower() or buscar.lower() in str(r["especialidad"]).lower() or buscar.lower() in str(r["registro_senescyt"]).lower(), axis=1)]
+    if "Con firma" in filtro_firma:
+        df_med_mostrar = df_med_mostrar[df_med_mostrar["registro_senescyt"].astype(str).str.strip() != ""]
+    if "Sin firma" in filtro_firma:
+        df_med_mostrar = df_med_mostrar[df_med_mostrar["registro_senescyt"].astype(str).str.strip() == ""]
+    # Tarjetas de médicos como en tu foto, en columnas
+    if len(df_med_mostrar) == 0:
+        st.info("Aún no hay médicos. Ve a Gestión > Cargar médicos por archivo o agrega uno manual.")
     else:
+        # Tabla limpia estilo tu foto
+        df_show = df_med_mostrar.copy()
+        if "nombre" in df_show.columns:
+            df_show = df_show.rename(columns={"nombre": "Médico", "cedula": "Cédula", "especialidad": "Especialidad", "registro_senescyt": "Código SENESCYT"})
+        st.dataframe(df_show, use_container_width=True, hide_index=True)
+    st.divider()
+    st.write("### ➕ Registrar Médico")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        with st.form("nm_nuevo"):
+            n = st.text_input("Nombre *").upper()
+            ced = st.text_input("Cédula")
+            esp = st.text_input("Especialidad")
+            sen = st.text_input("Registro SENESCYT / Código")
+            if st.form_submit_button("+ Registrar Médico", use_container_width=True):
+                if n.strip() == "":
+                    st.warning("Escribe el nombre")
+                else:
+                    conn.execute("INSERT OR REPLACE INTO medicos (nombre,cedula,especialidad,registro_senescyt) VALUES (?,?,?,?)", (n, ced, esp, sen))
+                    conn.commit()
+                    st.success(f"Médico {n} registrado")
+                    st.rerun()
+    with col_b:
+        st.write("**O cargar archivo con todos los médicos**")
+        st.write("Sube tu Excel, la app lee sola la columna Nombre. No tienes que marcar nada.")
+        buf_plantilla = crear_excel_bien({"Medicos": pd.DataFrame([{"Nombre": "MARIO PEREZ", "Cedula": "0912345678", "Especialidad": "Cirugia", "Registro Senescyt": "12345"}])})
+        st.download_button("📥 Descargar plantilla", data=buf_plantilla, file_name="Plantilla_Medicos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        archivo_medicos = st.file_uploader("Sube Excel de médicos", type=["xlsx", "xls"], key="upload_medicos_nuevo")
+        if archivo_medicos is not None:
+            try:
+                df_m_imp = leer_excel_auto(archivo_medicos)
+                cols_m = list(df_m_imp.columns)
+                c_nombre_m = buscar_col(cols_m, ["NOMBRE DEL MEDICO", "NOMBRE", "MEDICO", "DOCTOR"])
+                c_ced_m = buscar_col(cols_m, ["CEDULA", "CI"])
+                c_esp_m = buscar_col(cols_m, ["ESPECIALIDAD"])
+                c_sen_m = buscar_col(cols_m, ["SENESCYT", "REGISTRO"])
+                if not c_nombre_m:
+                    st.error("No encontré columna Nombre.")
+                else:
+                    df_nuevos = pd.DataFrame()
+                    df_nuevos["nombre"] = df_m_imp[c_nombre_m].astype(str).str.strip().str.upper()
+                    df_nuevos["cedula"] = df_m_imp[c_ced_m].astype(str).str.strip() if c_ced_m else ""
+                    df_nuevos["especialidad"] = df_m_imp[c_esp_m].astype(str).str.strip() if c_esp_m else ""
+                    df_nuevos["registro_senescyt"] = df_m_imp[c_sen_m].astype(str).str.strip() if c_sen_m else ""
+                    df_nuevos = df_nuevos[df_nuevos["nombre"] != ""]
+                    df_nuevos = df_nuevos[~df_nuevos["nombre"].isin(["NAN", "NONE"])]
+                    df_nuevos = df_nuevos.drop_duplicates(subset=["nombre"])
+                    ya_existentes = set(df_med["nombre"].astype(str).str.strip().str.upper().tolist()) if len(df_med) > 0 else set()
+                    df_nuevos_f = df_nuevos[~df_nuevos["nombre"].isin(ya_existentes)]
+                    for _, r in df_nuevos_f.iterrows():
+                        conn.execute("INSERT INTO medicos (nombre,cedula,especialidad,registro_senescyt) VALUES (?,?,?,?)", (r["nombre"], r["cedula"], r["especialidad"], r["registro_senescyt"]))
+                    conn.commit()
+                    st.success(f"✅ Se cargaron {len(df_nuevos_f)} médicos")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+with tab2:
+    st.write("")
+    # Buscador Honorarios mismo estilo
+    col_s2, col_e2 = st.columns([3, 1])
+    with col_s2:
+        buscar_hon = st.text_input("🔍 Buscar honorarios", placeholder="Buscar por paciente, médico, trámite, código...", label_visibility="collapsed", key="buscar_hon")
+    with col_e2:
+        lista_med_hon = ["Todos los médicos"] + sorted([m for m in df_all_hon["medico"].dropna().astype(str).unique() if m not in ["", "nan"]]) if len(df_all_hon) > 0 else ["Todos los médicos"]
+        medico_sel = st.selectbox("Médico", lista_med_hon, label_visibility="collapsed")
+    col_t1, col_t2, col_t3 = st.columns([1, 1, 1])
+    with col_t1:
+        lista_tram = ["Todos los trámites"] + sorted([t for t in df_all_hon["tramite"].dropna().astype(str).unique() if t not in ["", "nan"]]) if len(df_all_hon) > 0 else ["Todos los trámites"]
+        tramite_sel = st.selectbox("📋 N° Trámite ⬇️", lista_tram)
+    with col_t2:
+        filtro_tramite = st.selectbox("🔵 Estado Trámite ⬇️", ["Todos"] + sorted(df_all_hon["estado_tramite"].unique().tolist()) if len(df_all_hon) > 0 else ["Todos"])
+    with col_t3:
+        filtro_pago = st.selectbox("🟢 Pago al Médico ⬇️", ["Todos", "Pendiente", "Pagado"])
+    df = df_all_hon.copy()
+    if medico_sel != "Todos los médicos":
+        df = df[df["medico"] == medico_sel]
+    if tramite_sel != "Todos los trámites":
+        df = df[df["tramite"].astype(str) == tramite_sel]
+    if buscar_hon:
+        df = df[df.apply(lambda r: buscar_hon.lower() in str(r["paciente"]).lower() or buscar_hon.lower() in str(r["medico"]).lower() or buscar_hon.lower() in str(r["tramite"]).lower() or buscar_hon.lower() in str(r["codigo"]).lower(), axis=1)]
+    if filtro_tramite != "Todos":
+        df = df[df["estado_tramite"] == filtro_tramite]
+    if filtro_pago != "Todos":
+        df = df[df["estado_pago"] == filtro_pago]
+    if len(df) > 0:
         total_general = df["valor"].sum()
         total_60 = df["valor_60"].sum()
         pagado_60 = df[df["estado_pago"] == "Pagado"]["valor_60"].sum()
@@ -181,50 +316,42 @@ if menu == "Dashboard":
         c2.metric("Total 60%", f"${total_60:,.2f}")
         c3.metric("Pagado AL MEDICO", f"${pagado_60:,.2f}")
         c4.metric("Pendiente AL MEDICO", f"${pendiente_60:,.2f}")
-        st.write("**Por Estado Trámite:**")
-        st.dataframe(df.groupby("estado_tramite")["valor_60"].agg(["count", "sum"]).reset_index(), use_container_width=True)
-        st.dataframe(df, use_container_width=True)
-
-if menu == "Buscador":
-    st.subheader("🔍 Buscador - Todo con flechita")
-    df_all = arreglar_df(cargar_honorarios())
-    if len(df_all) == 0:
-        st.info("Aún no hay datos.")
+        st.write(f"Mostrando **{len(df)}** trámites")
+        cols_mostrar = [c for c in ["id", "medico", "paciente", "fecha", "codigo", "descripcion", "valor", "valor_60", "seguro", "tramite", "estado_tramite", "estado_pago"] if c in df.columns]
+        st.dataframe(df[cols_mostrar], use_container_width=True, hide_index=True)
+        # Marcar pago
+        df["seleccionar"] = False
+        cols_edit = [c for c in ["seleccionar", "id", "medico", "paciente", "codigo", "tramite", "valor_60", "estado_tramite", "estado_pago"] if c in df.columns]
+        df_edit = st.data_editor(df[cols_edit], use_container_width=True, hide_index=True, key="editor_pagos_new")
+        # Obtener seleccionados
+        try:
+            ids_sel = df_edit[df_edit["seleccionar"] == True]["id"].tolist() if "seleccionar" in df_edit.columns else []
+        except:
+            ids_sel = []
+        col1, col2 = st.columns(2)
+        if col1.button(f"✅ Marcar {len(ids_sel)} como PAGADO AL MEDICO", use_container_width=True):
+            for i in ids_sel:
+                conn.execute("UPDATE honorarios SET estado_pago='Pagado' WHERE rowid=?", (int(i),))
+            conn.commit()
+            st.success("Marcado como Pagado")
+            st.rerun()
+        if col2.button(f"↩️ Volver {len(ids_sel)} a PENDIENTE", use_container_width=True):
+            for i in ids_sel:
+                conn.execute("UPDATE honorarios SET estado_pago='Pendiente' WHERE rowid=?", (int(i),))
+            conn.commit()
+            st.success("Vuelto a Pendiente")
+            st.rerun()
+        buf_hon = crear_excel_bien({"Honorarios": df[cols_mostrar]})
+        st.download_button("📥 Descargar Informe (Excel)", data=buf_hon, file_name="Honorarios.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     else:
-        buscar_tramite_texto = st.text_input("🔍 Escribe el N° de Trámite aquí arriba", placeholder="Ej: A-2763-2025-ISSPOL")
-        col_m, col_t = st.columns(2)
-        lista_medicos = ["Todos los médicos"] + sorted([m for m in df_all["medico"].dropna().astype(str).str.strip().unique() if m not in ["", "nan"]])
-        medico_sel = col_m.selectbox("👨‍⚕️ Selecciona el Médico ⬇️", lista_medicos)
-        df_para_tramites = df_all.copy()
-        if medico_sel != "Todos los médicos":
-            df_para_tramites = df_all[df_all["medico"] == medico_sel]
-        lista_tramites = ["Todos los trámites"] + sorted([t for t in df_para_tramites["tramite"].dropna().astype(str).str.strip().unique() if t not in ["", "nan"]])
-        tramite_sel = col_t.selectbox("📋 Selecciona el N° de Trámite ⬇️", lista_tramites)
-        col_e1, col_e2 = st.columns(2)
-        filtro_tramite = col_e1.selectbox("🔵 Estado del TRÁMITE ⬇️", ["Todos"] + sorted(df_all["estado_tramite"].unique().tolist()))
-        filtro_pago = col_e2.selectbox("🟢 Estado PAGO AL MÉDICO ⬇️", ["Todos", "Pendiente", "Pagado"])
-        df = df_all.copy()
-        if medico_sel != "Todos los médicos":
-            df = df[df["medico"] == medico_sel]
-        if tramite_sel != "Todos los trámites":
-            df = df[df["tramite"].astype(str).str.strip() == tramite_sel]
-        if buscar_tramite_texto:
-            df = df[df["tramite"].astype(str).str.contains(buscar_tramite_texto.strip(), na=False)]
-        if filtro_tramite != "Todos":
-            df = df[df["estado_tramite"] == filtro_tramite]
-        if filtro_pago != "Todos":
-            df = df[df["estado_pago"] == filtro_pago]
-        st.write(f"Resultado: {len(df)} trámites")
-        if len(df) > 0:
-            cols_mostrar = [c for c in ["id", "medico", "paciente", "fecha", "codigo", "descripcion", "valor", "valor_60", "seguro", "tramite", "estado_tramite", "estado_pago"] if c in df.columns]
-            st.dataframe(df[cols_mostrar], use_container_width=True)
+        st.info("Aún no hay honorarios con esos filtros. Ve a Importar Archivos.")
 
-if menu == "Importar Archivos":
-    st.subheader("📂 Importar Archivos - Sube y listo, actualiza solo")
-    st.info("Solo sube el archivo. La app lee sola el Estado y actualiza.")
+with tab3:
+    st.write("### 📂 Importar Archivos - Sube y listo, actualiza solo")
+    st.info("Solo sube el archivo. La app lee sola el Estado y actualiza. Tú solo te encargas de que el archivo venga con los estados claros.")
     df_existente = arreglar_df(cargar_honorarios())
-    st.info(f"Ya tienes: {len(df_existente)} registros")
-    archivo = st.file_uploader("Sube tu archivo Excel", type=["xlsx", "xls", "csv"], key="import1")
+    st.write(f"Ya tienes: **{len(df_existente)}** registros")
+    archivo = st.file_uploader("Sube tu archivo Excel", type=["xlsx", "xls", "csv"], key="import1_new")
     if archivo is not None:
         try:
             df_imp = leer_excel_auto(archivo)
@@ -279,10 +406,10 @@ if menu == "Importar Archivos":
         except Exception as e:
             st.error(f"Error: {e}")
 
-if menu == "Actualizar Estados por Excel":
-    st.subheader("🔄 Actualizar Estados por Excel - Solo sube, no marques nada")
+with tab4:
+    st.write("### 🔄 Actualizar Estados por Excel - Solo sube, no marques nada")
     st.success("Tú solo sube el archivo con los estados claros. La app actualiza sola.")
-    archivo2 = st.file_uploader("Sube el Excel con los estados", type=["xlsx", "xls", "csv"], key="import_estados")
+    archivo2 = st.file_uploader("Sube el Excel con los estados", type=["xlsx", "xls", "csv"], key="import_estados_new")
     if archivo2 is not None:
         try:
             df_imp = leer_excel_auto(archivo2)
@@ -292,11 +419,10 @@ if menu == "Actualizar Estados por Excel":
             c_paciente2 = buscar_col(cols, ["NOMBRES DEL PACIENTE", "PACIENTE"])
             c_codigo2 = buscar_col(cols, ["CODIGO PLANILLADO", "CODIGO"])
             if not c_estado2 or not c_tramite2:
-                st.error("No encontré la columna ESTADO o TRÁMITE.")
+                st.error("No encontré ESTADO o TRÁMITE.")
                 st.write("Columnas:", cols)
             else:
                 st.write(f"Leído: Estado = {c_estado2} | Trámite = {c_tramite2}")
-                st.write("Estados que trae tu archivo:")
                 st.dataframe(df_imp[c_estado2].astype(str).value_counts().reset_index(), use_container_width=True)
                 actualizados = 0
                 no_encontrados = 0
@@ -320,107 +446,16 @@ if menu == "Actualizar Estados por Excel":
                 conn.commit()
                 st.success(f"✅ ¡Actualizado solo! Actualizados: {actualizados} | No encontrados: {no_encontrados}")
                 st.balloons()
-                if no_encontrados > 0:
-                    st.warning("Los no encontrados es porque ese N° de Trámite aún no está cargado en la base. Primero cárgalo en Importar Archivos.")
         except Exception as e:
             st.error(f"Error: {e}")
 
-if menu == "Sin Médico Asignado":
-    st.subheader("✏️ Sin Médico Asignado")
+with tab5:
+    st.write("### ⚙️ Gestión")
+    st.write("**Sin Médico Asignado**")
     df_sin = arreglar_df(cargar_honorarios())
-    df_sin = df_sin[(df_sin["medico"] == "SIN ASIGNAR") | (df_sin["medico"] == "") | (df_sin["medico"].isna())]
+    df_sin = df_sin[(df_sin["medico"] == "SIN ASIGNAR") | (df_sin["medico"] == "") | (df_sin["medico"].isna())] if len(df_sin) > 0 else df_sin
     st.write(f"Líneas sin médico: {len(df_sin)}")
     st.dataframe(df_sin, use_container_width=True)
-
-if menu == "Médicos":
-    st.subheader("👨‍⚕️ Médicos - Manual o Cargar Archivo")
-    df_medicos = pd.read_sql("SELECT * FROM medicos", conn)
-    st.write(f"Médicos registrados: {len(df_medicos)}")
-    st.dataframe(df_medicos, use_container_width=True)
-    st.divider()
-    st.write("### ✍️ FORMA 1: Agregar a mano")
-    with st.form("nm"):
-        n = st.text_input("Nombre *").upper()
-        ced = st.text_input("Cédula")
-        esp = st.text_input("Especialidad")
-        sen = st.text_input("Registro Senescyt")
-        if st.form_submit_button("➕ Agregar Médico Manual"):
-            if n.strip() == "":
-                st.warning("Escribe el nombre")
-            else:
-                conn.execute("INSERT OR REPLACE INTO medicos (nombre,cedula,especialidad,registro_senescyt) VALUES (?,?,?,?)", (n, ced, esp, sen))
-                conn.commit()
-                st.success(f"Médico {n} agregado")
-                st.rerun()
-    st.divider()
-    st.write("### 📂 FORMA 2: Cargar archivo con médicos - Sube y listo")
-    buf_plantilla = crear_excel_bien({"Medicos": pd.DataFrame([{"Nombre": "MARIO PEREZ", "Cedula": "0912345678", "Especialidad": "Cirugia", "Registro Senescyt": "12345"}])})
-    st.download_button("📥 Descargar plantilla de médicos", data=buf_plantilla, file_name="Plantilla_Medicos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    archivo_medicos = st.file_uploader("Sube tu archivo Excel de médicos", type=["xlsx", "xls"], key="upload_medicos")
-    if archivo_medicos is not None:
-        try:
-            df_m_imp = leer_excel_auto(archivo_medicos)
-            cols_m = list(df_m_imp.columns)
-            c_nombre_m = buscar_col(cols_m, ["NOMBRE DEL MEDICO", "NOMBRE", "MEDICO", "DOCTOR"])
-            c_ced_m = buscar_col(cols_m, ["CEDULA", "CI", "IDENTIFICACION"])
-            c_esp_m = buscar_col(cols_m, ["ESPECIALIDAD"])
-            if not c_nombre_m:
-                st.error("No encontré columna de Nombre.")
-                st.write("Columnas:", cols_m)
-            else:
-                df_nuevos = pd.DataFrame()
-                df_nuevos["nombre"] = df_m_imp[c_nombre_m].astype(str).str.strip().str.upper()
-                df_nuevos["cedula"] = df_m_imp[c_ced_m].astype(str).str.strip() if c_ced_m else ""
-                df_nuevos["especialidad"] = df_m_imp[c_esp_m].astype(str).str.strip() if c_esp_m else ""
-                df_nuevos["registro_senescyt"] = ""
-                df_nuevos = df_nuevos[df_nuevos["nombre"] != ""]
-                df_nuevos = df_nuevos[~df_nuevos["nombre"].isin(["NAN", "NONE"])]
-                df_nuevos = df_nuevos.drop_duplicates(subset=["nombre"])
-                ya_existentes = set(df_medicos["nombre"].astype(str).str.strip().str.upper().tolist()) if len(df_medicos) > 0 else set()
-                df_nuevos_f = df_nuevos[~df_nuevos["nombre"].isin(ya_existentes)]
-                for _, r in df_nuevos_f.iterrows():
-                    conn.execute("INSERT INTO medicos (nombre,cedula,especialidad,registro_senescyt) VALUES (?,?,?,?)", (r["nombre"], r["cedula"], r["especialidad"], r["registro_senescyt"]))
-                conn.commit()
-                st.success(f"✅ Se cargaron {len(df_nuevos_f)} médicos nuevos.")
-                st.balloons()
-                st.rerun()
-        except Exception as e:
-            st.error(f"Error: {e}")
-    buf = crear_excel_bien({"Medicos": df_medicos})
-    st.download_button("📥 Descargar médicos en Excel", data=buf, file_name="medicos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-if menu == "Actualizar Estados":
-    st.subheader("🔄 Actualizar Estados - Manual con flechitas")
-    df_all = arreglar_df(cargar_honorarios())
-    if len(df_all) == 0:
-        st.info("Aún no hay datos.")
-    else:
-        buscar_t = st.text_input("🔍 Escribe el N° de Trámite aquí", placeholder="Ej: 12345", key="buscar_t_estados")
-        col_m2, col_t2 = st.columns(2)
-        lista_med2 = ["Todos los médicos"] + sorted([m for m in df_all["medico"].dropna().astype(str).unique() if m not in ["", "nan"]])
-        f_medico = col_m2.selectbox("👨‍⚕️ Médico ⬇️", lista_med2, key="f_med_est")
-        df_para_t2 = df_all.copy()
-        if f_medico != "Todos los médicos":
-            df_para_t2 = df_all[df_all["medico"] == f_medico]
-        lista_tram2 = ["Todos los trámites"] + sorted([t for t in df_para_t2["tramite"].dropna().astype(str).unique() if t not in ["", "nan"]])
-        f_tramite_num = col_t2.selectbox("📋 N° Trámite ⬇️", lista_tram2, key="f_tram_est")
-        df_f = df_all.copy()
-        if f_medico != "Todos los médicos":
-            df_f = df_f[df_f["medico"] == f_medico]
-        if f_tramite_num != "Todos los trámites":
-            df_f = df_f[df_f["tramite"].astype(str) == f_tramite_num]
-        if buscar_t:
-            df_f = df_f[df_f["tramite"].astype(str).str.contains(buscar_t.strip(), na=False)]
-        st.write(f"Mostrando {len(df_f)} trámites")
-        df_editable = df_f[["id", "medico", "paciente", "codigo", "tramite", "valor_60", "estado_tramite", "estado_pago"]].copy()
-        df_editado = st.data_editor(df_editable, use_container_width=True, hide_index=True, key="editor_estados2", column_config={"estado_tramite": st.column_config.SelectboxColumn("Estado Trámite ⬇️", options=["Pendiente", "Pagado", "Liquidado", "Despachado", "En Trámite", "Observado", "Rechazado", "Auditado Documental", "Auditado Médico", "Recibido ISSPOL"]), "estado_pago": st.column_config.SelectboxColumn("Pago al Médico ⬇️", options=["Pendiente", "Pagado"])}, disabled=["id", "medico", "paciente", "codigo", "tramite", "valor_60"])
-        if st.button("💾 GUARDAR CAMBIOS", type="primary"):
-            cambios = 0
-            for _, row in df_editado.iterrows():
-                orig = df_f[df_f["id"] == row["id"]]
-                if len(orig) > 0 and (row["estado_tramite"] != orig.iloc[0]["estado_tramite"] or row["estado_pago"] != orig.iloc[0]["estado_pago"]):
-                    conn.execute("UPDATE honorarios SET estado_tramite=?, estado_pago=?, estado=? WHERE rowid=?", (row["estado_tramite"], row["estado_pago"], row["estado_tramite"], int(row["id"])))
-                    cambios += 1
-            conn.commit()
-            st.success(f"Se guardaron {cambios} cambios")
-            st.rerun()
+    if st.button("Salir"):
+        st.session_state.login = False
+        st.rerun()
