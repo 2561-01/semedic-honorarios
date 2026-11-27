@@ -108,6 +108,7 @@ if menu == "Importar Archivos":
             df2["valor_50"] = (df2["valor"] * 0.50).round(2)
             df2["valor_60"] = (df2["valor"] * 0.60).round(2)
             df2["estado"] = "Pendiente"
+            df2["id"] = range(1, len(df2) + 1)
             df2["estado_tramite"] = "Pendiente"
 
             st.success(f"Listo para cargar: {len(df2)} filas válidas")
@@ -162,9 +163,10 @@ if menu == "Sin Médico Asignado":
     df = pd.read_sql("SELECT * FROM honorarios WHERE medico='SIN ASIGNAR' OR medico='' OR medico IS NULL", conn)
     st.write(f"Hay {len(df)} honorarios sin médico"); st.dataframe(df, use_container_width=True)
     if es_admin and len(df)>0:
-        for _, fila in df.iterrows():
+        for _, fila in id_val = fila['id'] if 'id' in fila else fila.name
+        nm = st.selectbox(f"Asignar a {id_val}", MEDICOS_DEFAULT, key=f"m_{id_val}")df.iterrows():
             with st.expander(f"{fila['paciente']} - {fila['codigo']} - ${fila['valor']}"):
-                nm = st.selectbox(f"Asignar a {fila['id']}", MEDICOS_DEFAULT, key=f"m_{fila['id']}")
+                
                 if st.button("Guardar", key=f"b_{fila['id']}"):
                     conn.execute("UPDATE honorarios SET medico=? WHERE id=?", (nm, fila['id'])); conn.commit(); st.success("Asignado"); st.rerun()
 
@@ -172,7 +174,12 @@ if menu == "Médicos":
     st.subheader("Listado de Médicos")
     archivo = st.file_uploader("Subir listado actualizado Staff (Excel)", type=["xlsx"])
     if archivo and es_admin:
-        dfm = pd.read_excel(archivo); st.success(f"Se cargaron {len(dfm)} médicos"); st.dataframe(dfm)
+        dfm = pd.read_excel(archivo); st.success(f"Se cargaron {len(dfm)} médicos"); st.dataframe(dfm)import io
+buffer = io.BytesIO()
+with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+    df.to_excel(writer, index=False, sheet_name="Honorarios")
+buffer.seek(0)
+st.download_button("📥 Descargar en Excel bien", data=buffer, file_name="honorarios.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     if es_admin:
         with st.form("nm"):
             n = st.text_input("Nombre *").upper(); ced = st.text_input("Cédula"); esp = st.text_input("Especialidad"); sen = st.text_input("SENESCYT")
